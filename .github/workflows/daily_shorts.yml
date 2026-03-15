@@ -1,0 +1,26 @@
+name: Daily YouTube Shorts
+
+on:
+  schedule:
+    - cron: '0 8 * * 0'  # 8 AM every Sunday
+
+jobs:
+  create-shorts:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      
+      - name: Run automation
+        env:
+          GOOGLE_BARD_API: ${{ secrets.GOOGLE_BARD_API }}
+          CLAUDE_API: ${{ secrets.CLAUDE_API }}
+          ELEVENLABS_API: ${{ secrets.ELEVENLABS_API }}
+          FREEPIK_API: ${{ secrets.FREEPIK_API }}
+          YOUTUBE_API: ${{ secrets.YOUTUBE_API }}
+        run: python automation.py
