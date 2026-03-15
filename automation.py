@@ -4,11 +4,26 @@ import json
 import requests
 import time
 import urllib.parse
+import random
 from datetime import datetime
 
 GROQ_API       = os.getenv("GROQ_API")
 ELEVENLABS_API = os.getenv("ELEVENLABS_API")
 ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
+
+# ── Rotating CTAs ─────────────────────────────────────────────────────────────
+CTAS = [
+    "Follow for more psychology facts that will blow your mind.",
+    "Save this video. You'll want to watch it again.",
+    "Comment below — did this change how you see yourself?",
+    "Follow now. New psychology fact drops every day.",
+    "Save this. Most people scroll past and never learn this.",
+    "Comment 'mind blown' if this surprised you.",
+    "Follow for daily psychology facts most people never learn.",
+    "Save this video before you forget it.",
+    "Comment below — have you ever experienced this yourself?",
+    "Follow. Your mind will thank you later.",
+]
 
 print("🔑 Checking API keys...")
 missing = []
@@ -26,6 +41,10 @@ groq_headers = {
     "Authorization": f"Bearer {GROQ_API}",
     "Content-Type": "application/json"
 }
+
+# Pick a random CTA for this video
+cta = random.choice(CTAS)
+print(f"✓ CTA selected: {cta}")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 1 — Generate Psychology Topic (Groq)
@@ -97,7 +116,7 @@ except Exception as e:
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 2 — Write Voiceover Script (Groq)
+# STEP 2 — Write Voiceover Script with CTA (Groq)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n2️⃣  Writing voiceover script...")
 
@@ -126,7 +145,8 @@ try:
                         f"Niche: {topic['niche']}\n"
                         f"Hook: {topic['hook']}\n"
                         f"Fact: {topic['fact']}\n"
-                        f"Why it matters: {topic['why_it_matters']}\n\n"
+                        f"Why it matters: {topic['why_it_matters']}\n"
+                        f"CTA (use this EXACT CTA at the very end): {cta}\n\n"
                         "SCRIPT RULES:\n"
                         "- Start with the hook — first 3 seconds must grab attention\n"
                         "- Use 'you' and 'your' to speak directly to viewer\n"
@@ -134,8 +154,8 @@ try:
                         "- Build tension and curiosity in the middle\n"
                         "- Use simple everyday American language\n"
                         "- Add 1-2 real life examples Americans can relate to\n"
-                        "- End with a question that makes them comment\n"
-                        "- Exactly 120-140 words total\n"
+                        "- End with the EXACT CTA provided above\n"
+                        "- Exactly 120-140 words total including CTA\n"
                         "- NO intro like 'hey guys' or 'welcome back'\n"
                         "- Return ONLY the script text"
                     )
@@ -147,6 +167,7 @@ try:
     script_res.raise_for_status()
     script = script_res.json()["choices"][0]["message"]["content"].strip()
     print(f"✓ Script: {len(script.split())} words")
+    print(f"✓ CTA included at end")
 except Exception as e:
     print(f"❌ Step 2 failed: {e}")
     exit(1)
@@ -159,7 +180,8 @@ print("\n3️⃣  Saving script and metadata files...")
 try:
     with open("script.txt", "w") as f:
         f.write(f"TOPIC: {topic['topic']}\n")
-        f.write(f"NICHE: {topic['niche']}\n\n")
+        f.write(f"NICHE: {topic['niche']}\n")
+        f.write(f"CTA: {cta}\n\n")
         f.write("=" * 50 + "\n")
         f.write("VOICEOVER SCRIPT:\n")
         f.write("=" * 50 + "\n\n")
@@ -172,6 +194,7 @@ try:
         f.write(f"TOPIC:\n{topic['topic']}\n\n")
         f.write(f"NICHE:\n{topic['niche']}\n\n")
         f.write(f"HOOK:\n{topic['hook']}\n\n")
+        f.write(f"CTA:\n{cta}\n\n")
         f.write(f"TAGS:\npsychology, dark psychology, mind tricks, brain facts, "
                 f"human behavior, cognitive bias, mental health, shorts\n\n")
         f.write(f"SCRIPT:\n{script}\n")
@@ -253,7 +276,6 @@ if not image_success:
     print("   Generating with PIL fallback...")
     try:
         from PIL import Image, ImageDraw
-        import random
         random.seed(int(time.time()))
         img = Image.new('RGB', (720, 1280), (8, 4, 25))
         draw = ImageDraw.Draw(img)
@@ -298,5 +320,5 @@ print(f"\n✅ ALL DONE! '{topic['title']}' created successfully! 🎉")
 print(f"\n📄 Files created:")
 print(f"   - short.mp4      (video)")
 print(f"   - voiceover.mp3  (audio only)")
-print(f"   - script.txt     (voiceover script)")
-print(f"   - metadata.txt   (title, description, tags)")
+print(f"   - script.txt     (voiceover script + CTA)")
+print(f"   - metadata.txt   (title, description, tags, CTA)")
