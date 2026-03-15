@@ -23,15 +23,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests google-api-python-client google-auth-httplib2 google-auth-oauthlib
+          pip install requests
 
       - name: Install ffmpeg
         run: sudo apt-get install -y ffmpeg
 
       - name: Run automation
         env:
-          GOOGLE_BARD_API: ${{ secrets.GOOGLE_BARD_API }}
-          CLAUDE_API: ${{ secrets.CLAUDE_API }}
+          GROQ_API: ${{ secrets.GROQ_API }}
           ELEVENLABS_API: ${{ secrets.ELEVENLABS_API }}
           FREEPIK_API: ${{ secrets.FREEPIK_API }}
         run: python automation.py
