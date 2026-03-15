@@ -4,180 +4,276 @@ import json
 import requests
 from datetime import datetime
 
-CLAUDE_API     = os.getenv("CLAUDE_API")
+# ── API Keys ──────────────────────────────────────────────────────────────────
+GROQ_API       = os.getenv("GROQ_API")
 ELEVENLABS_API = os.getenv("ELEVENLABS_API")
 FREEPIK_API    = os.getenv("FREEPIK_API")
 
 ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
 
-print("🚀 Starting Psychology Shorts automation pipeline...")
+# ── Check all keys exist ───────────────────────────────────────────────────────
+print("🔑 Checking API keys...")
+missing = []
+if not GROQ_API:       missing.append("GROQ_API")
+if not ELEVENLABS_API: missing.append("ELEVENLABS_API")
+if not FREEPIK_API:    missing.append("FREEPIK_API")
+if missing:
+    print(f"❌ Missing secrets: {', '.join(missing)}")
+    exit(1)
+print("✓ All API keys found!")
+
+print("\n🚀 Starting Psychology Shorts automation pipeline...")
 print(f"📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-claude_headers = {
-    "x-api-key": CLAUDE_API,
-    "anthropic-version": "2023-06-01",
-    "content-type": "application/json"
+groq_headers = {
+    "Authorization": f"Bearer {GROQ_API}",
+    "Content-Type": "application/json"
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 1 — Generate Psychology Topic (Claude)
+# STEP 1 — Generate Psychology Topic (Groq)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n1️⃣  Generating psychology topic...")
 
-topic_payload = {
-    "model": "claude-haiku-4-5-20251001",
-    "max_tokens": 500,
-    "messages": [{
-        "role": "user",
-        "content": (
-            "Generate a unique psychology fact for a YouTube Shorts video. "
-            "Return ONLY a raw JSON object with these exact keys, no markdown, no code fences:\n"
-            "{\n"
-            '  "topic": "one-line topic title",\n'
-            '  "hook": "5-word shocking opening line",\n'
-            '  "fact": "the core psychology fact in 2 sentences",\n'
-            '  "why_it_matters": "why this matters to everyday life in 2 sentences",\n'
-            '  "title": "YouTube video title under 60 characters",\n'
-            '  "description": "YouTube description under 200 characters"\n'
-            "}"
-        )
-    }]
-}
+try:
+    topic_payload = {
+        "model": "llama3-8b-8192",
+        "max_tokens": 500,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a JSON generator. Return ONLY raw JSON, no markdown, no code fences, no explanation."
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Generate a unique psychology fact for a YouTube Shorts video. "
+                    "Return ONLY a raw JSON object with these exact keys:\n"
+                    "{\n"
+                    '  "topic": "one-line topic title",\n'
+                    '  "hook": "5-word shocking opening line",\n'
+                    '  "fact": "the core psychology fact in 2 sentences",\n'
+                    '  "why_it_matters": "why this matters to everyday life in 2 sentences",\n'
+                    '  "title": "YouTube video title under 60 characters",\n'
+                    '  "description": "YouTube description under 200 characters"\n'
+                    "}"
+                )
+            }
+        ]
+    }
 
-topic_res = requests.post(
-    "https://api.anthropic.com/v1/messages",
-    headers=claude_headers,
-    json=topic_payload
-)
-topic_res.raise_for_status()
-raw_topic = topic_res.json()["content"][0]["text"].strip()
+    topic_res = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers=groq_headers,
+        json=topic_payload,
+        timeout=30
+    )
+    print(f"   Groq status: {topic_res.status_code}")
+    topic_res.raise_for_status()
 
-if raw_topic.startswith("```"):
-    raw_topic = raw_topic.split("```")[1]
-    if raw_topic.startswith("json"):
-        raw_topic = raw_topic[4:]
+    raw_topic = topic_res.json()["choices"][0]["message"]["content"].strip()
 
-topic_data = json.loads(raw_topic.strip())
-print(f"✓ Topic: {topic_data['topic']}")
+    if raw_topic.startswith("```"):
+        raw_topic = raw_topic.split("```")[1]
+        if raw_topic.startswith("json"):
+            raw_topic = raw_topic[4:]
+
+    topic_data = json.loads(raw_topic.strip())
+    print(f"✓ Topic: {topic_data['topic']}")
+
+except requests.exceptions.HTTPError as e:
+    print(f"❌ Groq API error: {e}")
+    print(f"   Response: {topic_res.text}")
+    exit(1)
+except json.JSONDecodeError as e:
+    print(f"❌ Failed to parse JSON: {e}")
+    print(f"   Raw response: {raw_topic}")
+    exit(1)
+except Exception as e:
+    print(f"❌ Unexpected error in Step 1: {e}")
+    exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 2 — Create Voiceover Script (Claude)
+# STEP 2 — Create Voiceover Script (Groq)
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n2️⃣  Writing voiceover script with Claude...")
+print("\n2️⃣  Writing voiceover script...")
 
-script_payload = {
-    "model": "claude-haiku-4-5-20251001",
-    "max_tokens": 500,
-    "messages": [{
-        "role": "user",
-        "content": (
-            f"Write a 45-second YouTube Shorts voiceover script about this psychology fact.\n\n"
-            f"Topic: {topic_data['topic']}\n"
-            f"Hook: {topic_data['hook']}\n"
-            f"Fact: {topic_data['fact']}\n"
-            f"Why it matters: {topic_data['why_it_matters']}\n\n"
-            "Rules:\n"
-            "- Start with the hook immediately — no intro\n"
-            "- Conversational, calm tone\n"
-            "- Short sentences. Easy to listen to.\n"
-            "- End with a thought-provoking question for viewers\n"
-            "- 120–140 words total\n"
-            "- Return ONLY the script text, no labels or formatting"
-        )
-    }]
-}
+try:
+    script_payload = {
+        "model": "llama3-8b-8192",
+        "max_tokens": 500,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a YouTube Shorts scriptwriter. Return ONLY the script text, nothing else."
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Write a 45-second YouTube Shorts voiceover script about this psychology fact.\n\n"
+                    f"Topic: {topic_data['topic']}\n"
+                    f"Hook: {topic_data['hook']}\n"
+                    f"Fact: {topic_data['fact']}\n"
+                    f"Why it matters: {topic_data['why_it_matters']}\n\n"
+                    "Rules:\n"
+                    "- Start with the hook immediately\n"
+                    "- Conversational, calm tone\n"
+                    "- Short sentences\n"
+                    "- End with a thought-provoking question\n"
+                    "- 120-140 words total\n"
+                    "- Return ONLY the script, no labels"
+                )
+            }
+        ]
+    }
 
-script_res = requests.post(
-    "https://api.anthropic.com/v1/messages",
-    headers=claude_headers,
-    json=script_payload
-)
-script_res.raise_for_status()
-script = script_res.json()["content"][0]["text"].strip()
-print(f"✓ Script written ({len(script.split())} words)")
+    script_res = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers=groq_headers,
+        json=script_payload,
+        timeout=30
+    )
+    print(f"   Groq status: {script_res.status_code}")
+    script_res.raise_for_status()
+
+    script = script_res.json()["choices"][0]["message"]["content"].strip()
+    print(f"✓ Script written ({len(script.split())} words)")
+
+except requests.exceptions.HTTPError as e:
+    print(f"❌ Groq API error: {e}")
+    print(f"   Response: {script_res.text}")
+    exit(1)
+except Exception as e:
+    print(f"❌ Unexpected error in Step 2: {e}")
+    exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 3 — Generate Voiceover Audio (ElevenLabs)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n3️⃣  Generating voiceover with ElevenLabs...")
 
-el_url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
-el_headers = {
-    "xi-api-key": ELEVENLABS_API,
-    "Content-Type": "application/json"
-}
-el_payload = {
-    "text": script,
-    "model_id": "eleven_monolingual_v1",
-    "voice_settings": {
-        "stability": 0.6,
-        "similarity_boost": 0.85
+try:
+    el_url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
+    el_headers = {
+        "xi-api-key": ELEVENLABS_API,
+        "Content-Type": "application/json"
     }
-}
+    el_payload = {
+        "text": script,
+        "model_id": "eleven_monolingual_v1",
+        "voice_settings": {
+            "stability": 0.6,
+            "similarity_boost": 0.85
+        }
+    }
 
-el_res = requests.post(el_url, headers=el_headers, json=el_payload)
-el_res.raise_for_status()
+    el_res = requests.post(el_url, headers=el_headers, json=el_payload, timeout=60)
+    print(f"   ElevenLabs status: {el_res.status_code}")
 
-audio_path = "voiceover.mp3"
-with open(audio_path, "wb") as f:
-    f.write(el_res.content)
-print(f"✓ Voiceover saved: {audio_path}")
+    if el_res.status_code != 200:
+        print(f"❌ ElevenLabs error: {el_res.text}")
+        exit(1)
+
+    audio_path = "voiceover.mp3"
+    with open(audio_path, "wb") as f:
+        f.write(el_res.content)
+
+    if os.path.getsize(audio_path) < 1000:
+        print("❌ Voiceover file too small — something went wrong")
+        exit(1)
+
+    print(f"✓ Voiceover saved ({os.path.getsize(audio_path)} bytes)")
+
+except requests.exceptions.Timeout:
+    print("❌ ElevenLabs timed out")
+    exit(1)
+except Exception as e:
+    print(f"❌ Unexpected error in Step 3: {e}")
+    exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 4 — Generate Background Image (Freepik)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n4️⃣  Generating background image with Freepik...")
 
-freepik_headers = {
-    "x-freepik-api-key": FREEPIK_API,
-    "Content-Type": "application/json"
-}
-
-image_prompt = (
-    f"Cinematic vertical 9:16 illustration representing: {topic_data['topic']}. "
-    "Dark moody psychology aesthetic, neon blue and purple tones, "
-    "brain silhouette, thought bubbles, ultra HD, dramatic lighting, "
-    "no text, no people's faces"
-)
-
-image_payload = {
-    "prompt": image_prompt,
-    "image": {
-        "size": "portrait_9_16"
-    },
-    "styling": {
-        "style": "photo",
-        "color": "dark"
+try:
+    freepik_headers = {
+        "x-freepik-api-key": FREEPIK_API,
+        "Content-Type": "application/json"
     }
-}
 
-img_res = requests.post(
-    "https://api.freepik.com/v1/ai/text-to-image",
-    headers=freepik_headers,
-    json=image_payload
-)
-img_res.raise_for_status()
-img_data = img_res.json()
+    image_prompt = (
+        f"Cinematic vertical 9:16 illustration representing: {topic_data['topic']}. "
+        "Dark moody psychology aesthetic, neon blue and purple tones, "
+        "brain silhouette, thought bubbles, ultra HD, dramatic lighting, "
+        "no text, no people's faces"
+    )
 
-image_url = img_data["data"][0]["url"]
-img_file_res = requests.get(image_url)
-image_path = "background.jpg"
-with open(image_path, "wb") as f:
-    f.write(img_file_res.content)
-print(f"✓ Background image saved: {image_path}")
+    image_payload = {
+        "prompt": image_prompt,
+        "image": {
+            "size": "portrait_9_16"
+        },
+        "styling": {
+            "style": "photo",
+            "color": "dark"
+        }
+    }
+
+    img_res = requests.post(
+        "https://api.freepik.com/v1/ai/text-to-image",
+        headers=freepik_headers,
+        json=image_payload,
+        timeout=60
+    )
+    print(f"   Freepik status: {img_res.status_code}")
+
+    if img_res.status_code != 200:
+        print(f"❌ Freepik error: {img_res.text}")
+        exit(1)
+
+    img_data = img_res.json()
+    image_url = img_data["data"][0]["url"]
+    img_file_res = requests.get(image_url, timeout=30)
+    image_path = "background.jpg"
+    with open(image_path, "wb") as f:
+        f.write(img_file_res.content)
+
+    print(f"✓ Background image saved ({os.path.getsize(image_path)} bytes)")
+
+except requests.exceptions.Timeout:
+    print("❌ Freepik timed out")
+    exit(1)
+except Exception as e:
+    print(f"❌ Unexpected error in Step 4: {e}")
+    exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 5 — Combine Image + Audio into Video (ffmpeg)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n5️⃣  Combining image + audio into video...")
 
-video_path = "short.mp4"
-os.system(
-    f'ffmpeg -loop 1 -i {image_path} -i {audio_path} '
-    f'-c:v libx264 -tune stillimage -c:a aac -b:a 192k '
-    f'-pix_fmt yuv420p -shortest {video_path} -y'
-)
-print(f"✓ Video created: {video_path}")
+try:
+    video_path = "short.mp4"
+    result = os.system(
+        f'ffmpeg -loop 1 -i {image_path} -i {audio_path} '
+        f'-c:v libx264 -tune stillimage -c:a aac -b:a 192k '
+        f'-pix_fmt yuv420p -shortest {video_path} -y'
+    )
+
+    if result != 0:
+        print("❌ ffmpeg failed to create video")
+        exit(1)
+
+    if not os.path.exists(video_path) or os.path.getsize(video_path) < 1000:
+        print("❌ Video file missing or too small")
+        exit(1)
+
+    print(f"✓ Video created ({os.path.getsize(video_path)} bytes)")
+
+except Exception as e:
+    print(f"❌ Unexpected error in Step 5: {e}")
+    exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 6 — YouTube (Skipped for now)
