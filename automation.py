@@ -12,21 +12,94 @@ GROQ_API            = os.getenv("GROQ_API")
 ELEVENLABS_API      = os.getenv("ELEVENLABS_API")
 PEXELS_API          = os.getenv("PEXELS_API")
 
-# ── BEST VOICE: Josh — calm, deep, authoritative ──────────────────────────────
-# Used by top documentary & psychology YouTube channels
+# ── BEST VOICE: Josh — calm, deep, authoritative documentary style ─────────────
 ELEVENLABS_VOICE_ID = "TxGEqnHWrfWFTfGW9XjX"
+VOICE_FALLBACK_ID   = "pNInz6obpgDQGcFmaJgB"  # Adam fallback
 
+# ── TARGET DURATION: 58 seconds exactly ───────────────────────────────────────
+TARGET_DURATION = 58
+TARGET_WORDS    = 145  # ~145 words = ~58 seconds at natural pace
+
+# ── Rotating CTAs ──────────────────────────────────────────────────────────────
 CTAS = [
     "Follow for more psychology facts that will blow your mind.",
-    "Save this video. You will want to watch it again.",
-    "Comment below. Did this change how you see yourself?",
-    "Follow now. New psychology fact drops every single day.",
     "Save this. Most people scroll past and never learn this.",
     "Comment mind blown if this surprised you.",
+    "Follow now. New psychology fact drops every single day.",
+    "Comment below. Have you ever experienced this yourself?",
     "Follow for daily psychology facts most people never learn.",
     "Save this video before you forget it.",
-    "Comment below. Have you ever experienced this yourself?",
     "Follow. Your mind will thank you later.",
+]
+
+# ── Topic categories for viral US psychology content ──────────────────────────
+TOPIC_CATEGORIES = [
+    {
+        "category": "Dark Psychology & Manipulation",
+        "examples": [
+            "The silent treatment and why it works as emotional control",
+            "How narcissists make you feel crazy on purpose",
+            "The manipulation tactic your boss uses without you knowing",
+            "Why gaslighting makes you doubt your own memory",
+        ],
+        "visual_style": "dark dramatic lighting, shadowed faces, red and black tones, manipulative expressions",
+        "pexels_moods": ["manipulation control", "dark psychology", "person shadow", "emotional abuse", "mind control"]
+    },
+    {
+        "category": "Social Media & Modern Brain",
+        "examples": [
+            "Why you cannot stop doomscrolling even when you hate it",
+            "How Instagram is rewiring your brain like a slot machine",
+            "The dark reason likes and comments are addictive as drugs",
+            "Why your brain craves notifications at 2am",
+        ],
+        "visual_style": "cold blue phone light in dark room, ghostly hands from screen, modern digital addiction",
+        "pexels_moods": ["phone addiction", "social media night", "person scrolling dark", "digital stress", "screen glow"]
+    },
+    {
+        "category": "Self Sabotage & Subconscious",
+        "examples": [
+            "Why your brain destroys good things before they happen",
+            "The hidden reason you always pick the wrong person",
+            "Why you freeze when someone disrespects you",
+            "How childhood trauma controls your adult decisions",
+        ],
+        "visual_style": "split scene calm outside chaotic mind inside, person alone at night overthinking, dramatic shadows",
+        "pexels_moods": ["person thinking alone", "overthinking night", "emotional person", "anxiety stress", "alone sad"]
+    },
+    {
+        "category": "Body Language Secrets",
+        "examples": [
+            "The eye movement that reveals when someone is lying to you",
+            "Why crossed arms mean more than just being cold",
+            "The fake smile you cannot fake if you know this trick",
+            "How to know someone is attracted to you without them saying it",
+        ],
+        "visual_style": "close up faces with clear emotions, body language details, cinematic realistic people",
+        "pexels_moods": ["body language conversation", "face expression close up", "people talking", "emotional interaction", "nonverbal communication"]
+    },
+    {
+        "category": "Cognitive Biases & Decision Making",
+        "examples": [
+            "Why your brain makes you overpay every single time",
+            "The mental trick stores use to empty your wallet",
+            "Why you keep choosing the same bad options at restaurants",
+            "How your brain was hacked to buy things you never needed",
+        ],
+        "visual_style": "symbolic brain visuals, person trapped in maze, puppet with strings, cinematic thought bubbles",
+        "pexels_moods": ["decision making", "confused person", "shopping psychology", "mental bias", "brain thinking"]
+    },
+    {
+        "category": "Relationship Psychology",
+        "examples": [
+            "Why you are more attracted to people who ignore you",
+            "The attachment style destroying your relationships silently",
+            "Why trauma bonding feels like love but destroys you",
+            "The psychology behind why breakups hurt worse than rejection",
+        ],
+        "visual_style": "two people dramatic interaction, emotional close ups, relationship tension, cinematic lighting",
+        "pexels_moods": ["couple tension", "relationship stress", "emotional person", "heartbreak", "love psychology"]
+    },
 ]
 
 print("🔑 Checking API keys...")
@@ -41,6 +114,7 @@ print("✓ All API keys found!")
 
 print("\n🚀 Starting Psychology Shorts pipeline...")
 print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"🎯 Target duration: {TARGET_DURATION} seconds")
 
 groq_headers = {
     "Authorization": f"Bearer {GROQ_API}",
@@ -48,12 +122,14 @@ groq_headers = {
 }
 
 cta = random.choice(CTAS)
+category = random.choice(TOPIC_CATEGORIES)
+print(f"✓ Category: {category['category']}")
 print(f"✓ CTA: {cta}")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 1 — Generate Psychology Topic
+# STEP 1 — Generate Psychology Topic + 3 Visual Concepts
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n1️⃣  Generating psychology topic...")
+print("\n1️⃣  Generating psychology topic + visual concepts...")
 
 try:
     topic_res = requests.post(
@@ -61,52 +137,52 @@ try:
         headers=groq_headers,
         json={
             "model": "llama-3.3-70b-versatile",
-            "max_tokens": 800,
+            "max_tokens": 1200,
             "messages": [
                 {
                     "role": "system",
                     "content": (
                         "You are a viral YouTube Shorts psychology content expert "
-                        "with 10 million US subscribers aged 18-35. "
-                        "You write like a friend texting a shocking secret. "
-                        "NEVER use: norepinephrine, cortisol, cognitive, consolidation, phenomenon. "
+                        "targeting US audiences aged 18-35. "
+                        "You create content like the biggest faceless psychology channels. "
+                        "You NEVER use: norepinephrine, cortisol, cognitive, consolidation, "
+                        "phenomenon, neuroscience, psychological, dopamine, serotonin, amygdala. "
+                        "You speak like a close friend revealing a dark secret. "
                         "Return ONLY raw JSON. No markdown. No code fences. No explanation."
                     )
                 },
                 {
                     "role": "user",
                     "content": (
-                        "Create a VIRAL psychology YouTube Shorts topic for US audience 18-35.\n\n"
-                        "RANDOMLY PICK ONE NICHE:\n"
-                        "- Dark psychology tricks people use on you every day\n"
-                        "- Shocking things your brain does behind your back\n"
-                        "- Why you keep sabotaging yourself without knowing\n"
-                        "- Hidden manipulation tactics in relationships\n"
-                        "- Mind tricks your boss uses to control you at work\n"
-                        "- Why your brain makes you spend money you dont have\n"
-                        "- The dark reason you cant stop scrolling social media\n"
-                        "- Why you freeze when someone disrespects you\n\n"
+                        f"Create a VIRAL psychology YouTube Short for US audience 18-35.\n\n"
+                        f"CATEGORY: {category['category']}\n"
+                        f"EXAMPLE TOPICS FROM THIS CATEGORY:\n"
+                        + "\n".join([f"- {e}" for e in category['examples']]) +
+                        f"\n\nVISUAL STYLE FOR THIS CATEGORY: {category['visual_style']}\n\n"
                         "VIRAL RULES:\n"
                         "- Hook = stops scrolling in under 2 seconds\n"
-                        "- Fact = feels personal, about THEM specifically\n"
-                        "- Must relate to dating, money, work or social media\n"
+                        "- Fact = feels PERSONAL about THEM specifically\n"
+                        "- Connects to: dating, money, work or social media\n"
                         "- Language = 8th grade reading level max\n"
                         "- Title = power words: Secret, Dark, Never, Shocking, Hidden, Why\n\n"
-                        "Return ONLY this JSON object:\n"
+                        "For each of the 3 Pexels searches, think:\n"
+                        "- Search 1 = HOOK visual (emotional, shocking, stops scrolling)\n"
+                        "- Search 2 = CONCEPT visual (explains the psychology)\n"
+                        "- Search 3 = IMPACT visual (why it matters, relatable scene)\n"
+                        "- Search 4 = EMOTIONAL close up (face showing the emotion)\n"
+                        "- Search 5 = RESOLUTION visual (awareness, realization)\n\n"
+                        "Return ONLY this JSON:\n"
                         "{\n"
                         '  "topic": "specific relatable topic max 8 words",\n'
-                        '  "niche": "one niche category",\n'
-                        '  "hook": "shocking opener 6-8 words that stops scrolling",\n'
-                        '  "fact": "2 short punchy sentences. no jargon. feels personal.",\n'
+                        '  "niche": "category name",\n'
+                        '  "hook": "shocking opener 6-8 words stops scrolling",\n'
+                        '  "fact": "2 short punchy sentences no jargon feels personal",\n'
                         '  "why_it_matters": "2 sentences connecting to dating/money/work/social media",\n'
-                        '  "real_example": "1 sentence specific American scenario eg at work on a date etc",\n'
-                        '  "pexels_searches": ["term1", "term2", "term3", "term4", "term5"],\n'
+                        '  "real_example": "1 specific American scenario eg at work on a date",\n'
+                        '  "pexels_searches": ["hook visual", "concept visual", "impact visual", "emotion closeup", "resolution visual"],\n'
                         '  "title": "YouTube title max 60 chars with power words",\n'
                         '  "description": "YouTube description max 200 chars with hashtags"\n'
-                        "}\n\n"
-                        "For pexels_searches: 5 different 2-3 word visual search terms "
-                        "showing human emotions, brain, psychology, people reacting "
-                        "eg: person thinking, brain neurons, stressed person, social media addiction, dark thoughts"
+                        "}"
                     )
                 }
             ]
@@ -120,16 +196,16 @@ try:
         if raw.startswith("json"): raw = raw[4:]
     topic = json.loads(raw.strip())
     print(f"✓ Topic: {topic['topic']}")
-    print(f"✓ Niche: {topic['niche']}")
     print(f"✓ Hook: {topic['hook']}")
+    print(f"✓ Searches: {topic['pexels_searches']}")
 except Exception as e:
     print(f"❌ Step 1 failed: {e}")
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 2 — Write Viral Script
+# STEP 2 — Write Exactly 58-Second Viral Script
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n2️⃣  Writing viral script...")
+print("\n2️⃣  Writing 58-second viral script...")
 
 try:
     script_res = requests.post(
@@ -137,58 +213,64 @@ try:
         headers=groq_headers,
         json={
             "model": "llama-3.3-70b-versatile",
-            "max_tokens": 700,
+            "max_tokens": 800,
             "messages": [
                 {
                     "role": "system",
                     "content": (
                         "You write the most viral psychology YouTube Shorts in America. "
-                        "Your scripts feel like a close friend revealing a dark secret. "
-                        "BANNED WORDS: norepinephrine, cortisol, cognitive, consolidation, "
-                        "phenomenon, neuroscience, psychological, dopamine, serotonin. "
-                        "Write in plain American English. "
-                        "Every single sentence makes the viewer desperate to hear the next. "
-                        "Return ONLY the script. No labels. No titles. No formatting."
+                        "Channels with millions of views use your scripts. "
+                        "Your scripts feel like a trusted friend revealing a dark secret. "
+                        "ABSOLUTELY BANNED WORDS: norepinephrine, cortisol, cognitive, "
+                        "consolidation, phenomenon, neuroscience, psychological, dopamine, "
+                        "serotonin, amygdala, prefrontal, hippocampus, neurological. "
+                        "Write in plain conversational American English. "
+                        "Every single sentence makes the viewer NEED to hear the next. "
+                        "Use dramatic pauses with ... for effect. "
+                        "Return ONLY the spoken script text. Nothing else. No labels."
                     )
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Write a VIRAL 45-50 second psychology script for US audience.\n\n"
+                        f"Write a VIRAL psychology YouTube Shorts script.\n\n"
                         f"Topic: {topic['topic']}\n"
-                        f"Niche: {topic['niche']}\n"
+                        f"Category: {topic['niche']}\n"
                         f"Hook: {topic['hook']}\n"
-                        f"Fact: {topic['fact']}\n"
+                        f"Core fact: {topic['fact']}\n"
                         f"Why it matters: {topic['why_it_matters']}\n"
                         f"Real example: {topic['real_example']}\n"
-                        f"End with this EXACT CTA: {cta}\n\n"
-                        "STRUCTURE:\n"
-                        "1. Hook (2 sentences) — shock them in first 3 seconds\n"
-                        "2. Dark reveal (3 sentences) — drop the fact like a secret\n"
-                        "3. Real example (2 sentences) — scene they recognize from their own life\n"
-                        "4. Personal impact (2 sentences) — why this affects THEM right now\n"
-                        "5. Cliffhanger question (1 sentence) — makes them think\n"
-                        "6. Exact CTA (1 sentence) — word for word as given\n\n"
+                        f"End with EXACT CTA: {cta}\n\n"
+                        f"SCRIPT STRUCTURE (total {TARGET_WORDS} words = 58 seconds):\n"
+                        "1. HOOK (15 words) — first 3 seconds, shock them immediately\n"
+                        "2. DARK REVEAL (35 words) — drop the psychology fact like a secret\n"
+                        "3. REAL EXAMPLE (30 words) — scene they recognize from their life\n"
+                        "4. PERSONAL IMPACT (35 words) — why this affects THEM right now\n"
+                        "5. CLIFFHANGER (15 words) — question that makes them comment\n"
+                        "6. CTA (15 words) — exact CTA provided above word for word\n\n"
                         "STRICT RULES:\n"
-                        "- Every sentence MAX 8 words\n"
-                        "- Use YOU and YOUR in every 2nd sentence\n"
-                        "- Zero scientific terms\n"
-                        "- Pause words allowed: dot dot dot (...) for dramatic effect\n"
-                        "- 125-140 words total\n"
-                        "- NO hey, welcome, today, hi guys\n"
-                        "- Return ONLY the spoken script\n\n"
-                        "PERFECT EXAMPLE OUTPUT:\n"
+                        "- EXACTLY 140-150 words total (= 58 seconds spoken)\n"
+                        "- MAX 8 words per sentence\n"
+                        "- Use YOU and YOUR every 2nd sentence\n"
+                        "- Zero banned scientific terms\n"
+                        "- Use ... for dramatic pauses\n"
+                        "- NO hey, welcome, today, hi guys, in this video\n"
+                        "- Return ONLY the script text\n\n"
+                        "PERFECT EXAMPLE STYLE:\n"
                         "Your brain is hiding something from you.\n"
                         "Right now. Every single day.\n"
                         "Here is the dark truth nobody tells you.\n"
-                        "Your mind makes decisions 7 seconds before you do.\n"
-                        "You think you chose that. You did not.\n"
-                        "Think about the last argument you walked away from.\n"
-                        "Your brain had already decided... before you opened your mouth.\n"
-                        "This is why you keep repeating the same mistakes.\n"
-                        "You are not broken. Your past is just running the show.\n"
-                        "So who is actually in control of your life right now?\n"
-                        f"{cta}"
+                        "Your mind makes choices... before you even think.\n"
+                        "Seven seconds before you decide... it is already done.\n"
+                        "Think about that argument you walked away from.\n"
+                        "Your brain had already decided the outcome.\n"
+                        "Before you even opened your mouth.\n"
+                        "This is why you keep repeating the same patterns.\n"
+                        "The same relationships. The same jobs. The same mistakes.\n"
+                        "You are not broken.\n"
+                        "Your past is just running the show.\n"
+                        "So right now... who is actually driving your life?\n"
+                        "Follow for more psychology facts that will blow your mind."
                     )
                 }
             ]
@@ -197,10 +279,10 @@ try:
     )
     script_res.raise_for_status()
     script = script_res.json()["choices"][0]["message"]["content"].strip()
-    # Remove any accidental quotes or labels
     script = script.strip('"').strip("'")
-    print(f"✓ Script: {len(script.split())} words")
-    print(f"✓ Preview: {' '.join(script.split()[:12])}...")
+    word_count = len(script.split())
+    print(f"✓ Script: {word_count} words (~{word_count/2.5:.0f} seconds)")
+    print(f"✓ Preview: {' '.join(script.split()[:15])}...")
 except Exception as e:
     print(f"❌ Step 2 failed: {e}")
     exit(1)
@@ -213,9 +295,10 @@ print("\n3️⃣  Saving files...")
 try:
     with open("script.txt", "w", encoding="utf-8") as f:
         f.write(f"TOPIC: {topic['topic']}\n")
-        f.write(f"NICHE: {topic['niche']}\n")
+        f.write(f"CATEGORY: {topic['niche']}\n")
         f.write(f"HOOK: {topic['hook']}\n")
-        f.write(f"CTA: {cta}\n\n")
+        f.write(f"CTA: {cta}\n")
+        f.write(f"WORD COUNT: {len(script.split())}\n\n")
         f.write("=" * 50 + "\n")
         f.write("VOICEOVER SCRIPT:\n")
         f.write("=" * 50 + "\n\n")
@@ -225,75 +308,73 @@ try:
         f.write(f"TITLE:\n{topic['title']}\n\n")
         f.write(f"DESCRIPTION:\n{topic['description']}\n\n")
         f.write(f"TOPIC:\n{topic['topic']}\n\n")
-        f.write(f"NICHE:\n{topic['niche']}\n\n")
+        f.write(f"CATEGORY:\n{topic['niche']}\n\n")
         f.write(f"HOOK:\n{topic['hook']}\n\n")
         f.write(f"CTA:\n{cta}\n\n")
-        f.write(f"TAGS:\npsychology, dark psychology, mind tricks, brain facts, "
-                f"human behavior, mental health, shorts, psychology facts, "
-                f"mind blowing, self improvement\n\n")
+        f.write(
+            "TAGS:\npsychology, dark psychology, mind tricks, brain facts, "
+            "human behavior, mental health, shorts, psychology facts, "
+            "mind blowing, self improvement, us psychology\n\n"
+        )
         f.write(f"SCRIPT:\n{script}\n")
-    print("✓ Files saved")
+    print("✓ script.txt saved")
+    print("✓ metadata.txt saved")
 except Exception as e:
     print(f"❌ Step 3 failed: {e}")
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 4 — Generate Voiceover (ElevenLabs - Josh voice)
+# STEP 4 — Generate Voiceover (Josh - calm deep voice)
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n4️⃣  Generating voiceover (Josh - calm deep voice)...")
+print("\n4️⃣  Generating voiceover...")
 
-try:
-    el_res = requests.post(
-        f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}",
+def generate_voice(voice_id, script_text):
+    res = requests.post(
+        f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
         headers={"xi-api-key": ELEVENLABS_API, "Content-Type": "application/json"},
         json={
-            "text": script,
+            "text": script_text,
             "model_id": "eleven_flash_v2_5",
             "voice_settings": {
-                "stability": 0.40,        # Natural variation, not monotone
-                "similarity_boost": 0.78, # Clear & authentic
-                "style": 0.25,            # Slight expressiveness
-                "use_speaker_boost": True  # Cleaner audio
+                "stability": 0.38,
+                "similarity_boost": 0.76,
+                "style": 0.28,
+                "use_speaker_boost": True
             }
         },
         timeout=60
     )
+    return res
+
+try:
+    print("   Trying Josh voice (calm, deep, authoritative)...")
+    el_res = generate_voice(ELEVENLABS_VOICE_ID, script)
+
     if el_res.status_code != 200:
-        print(f"❌ ElevenLabs error {el_res.status_code}: {el_res.text}")
-        # Try with Adam voice as fallback
-        print("   Trying Adam voice as fallback...")
-        el_res = requests.post(
-            f"https://api.elevenlabs.io/v1/text-to-speech/pNInz6obpgDQGcFmaJgB",
-            headers={"xi-api-key": ELEVENLABS_API, "Content-Type": "application/json"},
-            json={
-                "text": script,
-                "model_id": "eleven_flash_v2_5",
-                "voice_settings": {
-                    "stability": 0.40,
-                    "similarity_boost": 0.78,
-                    "style": 0.25,
-                    "use_speaker_boost": True
-                }
-            },
-            timeout=60
-        )
+        print(f"   Josh failed ({el_res.status_code}), trying Adam...")
+        el_res = generate_voice(VOICE_FALLBACK_ID, script)
         if el_res.status_code != 200:
             print(f"❌ Both voices failed: {el_res.text}")
             exit(1)
+        print("   ✓ Using Adam voice")
+    else:
+        print("   ✓ Using Josh voice")
 
     with open("voiceover.mp3", "wb") as f:
         f.write(el_res.content)
+
     size = os.path.getsize("voiceover.mp3")
     if size < 1000:
-        print("❌ Audio too small")
+        print("❌ Audio file too small")
         exit(1)
     print(f"✓ Voiceover saved ({size:,} bytes)")
+
 except Exception as e:
     print(f"❌ Step 4 failed: {e}")
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 5 — Get Audio Duration
+# STEP 5 — Get Actual Audio Duration
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n5️⃣  Getting audio duration...")
 
@@ -304,68 +385,69 @@ try:
         capture_output=True, text=True, timeout=10
     )
     audio_duration = float(result.stdout.strip())
-    print(f"✓ Duration: {audio_duration:.1f}s")
+    print(f"✓ Actual duration: {audio_duration:.1f}s (target: {TARGET_DURATION}s)")
 except Exception:
-    audio_duration = 50.0
-    print(f"⚠️ Default: {audio_duration}s")
+    audio_duration = float(TARGET_DURATION)
+    print(f"⚠️ Using target duration: {audio_duration}s")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 6 — Download 5 Pexels Clips
+# STEP 6 — Download 5 Pexels Clips (topic-specific)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n6️⃣  Downloading Pexels clips...")
 
 def download_clip(query, filename):
+    """Download a portrait Pexels video clip"""
     try:
-        res = requests.get(
-            f"https://api.pexels.com/videos/search"
-            f"?query={urllib.parse.quote(query)}&per_page=15&orientation=portrait",
-            headers={"Authorization": PEXELS_API},
-            timeout=30
-        )
-        if res.status_code != 200:
-            return False
-        videos = res.json().get("videos", [])
-        if not videos:
-            return False
-        random.shuffle(videos)
-        for video in videos:
-            if video.get("duration", 0) < 4:
-                continue
-            files = sorted(
-                [f for f in video.get("video_files", []) if f.get("height", 0) >= 540],
-                key=lambda x: x.get("height", 0), reverse=True
+        # Try portrait first
+        for orientation in ["portrait", "landscape"]:
+            res = requests.get(
+                f"https://api.pexels.com/videos/search"
+                f"?query={urllib.parse.quote(query)}"
+                f"&per_page=15&orientation={orientation}",
+                headers={"Authorization": PEXELS_API},
+                timeout=30
             )
-            if not files:
-                files = video.get("video_files", [])
-            if not files:
+            if res.status_code != 200:
                 continue
-            r = requests.get(files[0]["link"], timeout=60, stream=True)
-            if r.status_code == 200:
-                with open(filename, "wb") as f:
-                    for chunk in r.iter_content(8192):
-                        f.write(chunk)
-                if os.path.getsize(filename) > 100000:
-                    return True
+            videos = res.json().get("videos", [])
+            if not videos:
+                continue
+
+            random.shuffle(videos)
+            for video in videos:
+                if video.get("duration", 0) < 4:
+                    continue
+                files = video.get("video_files", [])
+                # Prefer HD files
+                good = sorted(
+                    [f for f in files if f.get("height", 0) >= 540],
+                    key=lambda x: x.get("height", 0), reverse=True
+                )
+                if not good:
+                    good = sorted(files, key=lambda x: x.get("height", 0), reverse=True)
+                if not good:
+                    continue
+
+                r = requests.get(good[0]["link"], timeout=90, stream=True)
+                if r.status_code == 200:
+                    with open(filename, "wb") as f:
+                        for chunk in r.iter_content(8192):
+                            f.write(chunk)
+                    if os.path.exists(filename) and os.path.getsize(filename) > 50000:
+                        return True
     except Exception as e:
-        print(f"   ⚠️ Error: {e}")
+        print(f"   ⚠️ '{query}' error: {e}")
     return False
 
-searches = topic.get('pexels_searches', [
-    'person thinking', 'brain neurons',
-    'stressed person', 'social media',
-    'dark psychology'
-])
-
-fallbacks = [
-    'human thinking', 'mind psychology',
-    'emotions person', 'brain science',
-    'anxiety stress', 'social behavior',
-    'person alone', 'decision making'
+# Topic-specific searches from Step 1 + category fallbacks
+searches = topic.get('pexels_searches', category['pexels_moods'])
+fallbacks = category['pexels_moods'] + [
+    'person thinking', 'brain neurons', 'emotional person',
+    'psychology mind', 'stressed person', 'social media night',
+    'dark thoughts', 'human behavior'
 ]
 
 clips = []
-clip_dur = audio_duration / 5
-
 for i in range(5):
     fname = f"clip_{i}.mp4"
     query = searches[i] if i < len(searches) else fallbacks[i % len(fallbacks)]
@@ -385,34 +467,46 @@ for i in range(5):
 print(f"✓ {len(clips)}/5 clips downloaded")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 7 — Process Clips (crop 9:16, resize 720x1280)
+# STEP 7 — Process Clips (crop 9:16, resize 720x1280, enhance)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n7️⃣  Processing clips...")
 
 processed = []
-target_dur = audio_duration / max(len(clips), 1)
+clip_dur = audio_duration / max(len(clips), 1)
 
 for i, clip in enumerate(clips):
     out = f"proc_{i}.mp4"
+    # Crop to 9:16, scale to 720x1280, 30fps, slight contrast boost
     cmd = (
-        f'ffmpeg -i {clip} -t {target_dur + 0.5} '
-        f'-vf "crop=ih*9/16:ih,scale=720:1280,setsar=1,fps=30" '
-        f'-c:v libx264 -preset fast -crf 22 -an {out} -y 2>/dev/null'
+        f'ffmpeg -i {clip} -t {clip_dur + 0.5} '
+        f'-vf "crop=ih*9/16:ih,scale=720:1280,setsar=1,fps=30,'
+        f'eq=contrast=1.1:brightness=0.02:saturation=1.2" '
+        f'-c:v libx264 -preset fast -crf 20 -an {out} -y 2>/dev/null'
     )
     if os.system(cmd) == 0 and os.path.exists(out) and os.path.getsize(out) > 10000:
         processed.append(out)
         print(f"   ✓ Clip {i+1} processed")
     else:
-        print(f"   ⚠️ Clip {i+1} processing failed")
+        # Try without enhancement
+        cmd2 = (
+            f'ffmpeg -i {clip} -t {clip_dur + 0.5} '
+            f'-vf "crop=ih*9/16:ih,scale=720:1280,setsar=1,fps=30" '
+            f'-c:v libx264 -preset fast -crf 22 -an {out} -y 2>/dev/null'
+        )
+        if os.system(cmd2) == 0 and os.path.exists(out) and os.path.getsize(out) > 10000:
+            processed.append(out)
+            print(f"   ✓ Clip {i+1} processed (basic)")
+        else:
+            print(f"   ⚠️ Clip {i+1} failed")
 
-# Pad to at least 3 clips
-while len(processed) < 3 and processed:
+# Pad to at least 2 clips
+while len(processed) < 2 and processed:
     processed.append(processed[0])
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 8 — Stitch Clips + Create Background
+# STEP 8 — Stitch All Clips + Create Background Video
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n8️⃣  Stitching clips...")
+print("\n8️⃣  Stitching clips into background video...")
 
 bg_video = "background.mp4"
 
@@ -421,19 +515,34 @@ if processed:
         for p in processed:
             f.write(f"file '{p}'\n")
 
+    # Concatenate and loop to fill full duration
     result = os.system(
         f'ffmpeg -f concat -safe 0 -i clips.txt '
-        f'-t {audio_duration + 1} '
-        f'-c:v libx264 -preset fast -crf 22 '
+        f'-stream_loop -1 -t {audio_duration + 1} '
+        f'-c:v libx264 -preset fast -crf 20 '
         f'{bg_video} -y 2>/dev/null'
     )
-    if result != 0 or not os.path.exists(bg_video) or os.path.getsize(bg_video) < 10000:
-        print("   ⚠️ Stitch failed, using first clip")
-        if processed:
-            os.system(f'cp {processed[0]} {bg_video}')
 
+    if result != 0 or not os.path.exists(bg_video) or os.path.getsize(bg_video) < 10000:
+        # Simple concat without loop
+        result2 = os.system(
+            f'ffmpeg -f concat -safe 0 -i clips.txt '
+            f'-c:v libx264 -preset fast -crf 20 '
+            f'{bg_video} -y 2>/dev/null'
+        )
+        if result2 != 0:
+            print("   ⚠️ Stitch failed, using single clip")
+            if processed:
+                os.system(
+                    f'ffmpeg -stream_loop -1 -i {processed[0]} '
+                    f'-t {audio_duration + 1} '
+                    f'-c:v libx264 -preset fast -crf 20 '
+                    f'{bg_video} -y 2>/dev/null'
+                )
+
+# PIL fallback if all video fails
 if not os.path.exists(bg_video) or os.path.getsize(bg_video) < 10000:
-    print("   Generating PIL fallback...")
+    print("   Generating PIL background fallback...")
     try:
         from PIL import Image, ImageDraw
         random.seed(int(time.time()))
@@ -445,17 +554,18 @@ if not os.path.exists(bg_video) or os.path.getsize(bg_video) < 10000:
                 int(4+(y/1280)*8),
                 int(25+(y/1280)*55)
             ))
-        for _ in range(80):
-            x,y = random.randint(0,720), random.randint(0,1280)
-            r = random.randint(1,8)
+        for _ in range(100):
+            x, y = random.randint(0,720), random.randint(0,1280)
+            r = random.randint(1,10)
             draw.ellipse([x-r,y-r,x+r,y+r],
                 fill=(random.randint(60,150), random.randint(20,80), random.randint(180,255)))
         img.save("bg.jpg", quality=95)
         os.system(
             f'ffmpeg -loop 1 -i bg.jpg -t {audio_duration+1} '
-            f'-c:v libx264 -tune stillimage -pix_fmt yuv420p {bg_video} -y 2>/dev/null'
+            f'-c:v libx264 -tune stillimage -pix_fmt yuv420p '
+            f'{bg_video} -y 2>/dev/null'
         )
-        print("   ✓ PIL fallback created")
+        print("   ✓ PIL background created")
     except Exception as e:
         print(f"❌ PIL failed: {e}")
         exit(1)
@@ -463,88 +573,121 @@ if not os.path.exists(bg_video) or os.path.getsize(bg_video) < 10000:
 print(f"✓ Background ready ({os.path.getsize(bg_video):,} bytes)")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 9 — Generate Word-by-Word Subtitles
+# STEP 9 — Generate Word-by-Word Subtitles (TikTok style)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n9️⃣  Generating word-by-word subtitles...")
 
-def srt_t(s):
-    h,m = int(s//3600), int((s%3600)//60)
-    sec, ms = int(s%60), int((s%1)*1000)
+def srt_time(s):
+    h = int(s // 3600)
+    m = int((s % 3600) // 60)
+    sec = int(s % 60)
+    ms = int((s % 1) * 1000)
     return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
 
 try:
     words = script.split()
-    wps = len(words) / audio_duration
-    # 3 words per subtitle for word-by-word effect
-    chunk = 3
-    groups = [words[i:i+chunk] for i in range(0, len(words), chunk)]
+    total_words = len(words)
+    wps = total_words / audio_duration
+
+    # 3 words per line = word-by-word effect
+    chunk_size = 3
+    groups = [words[i:i+chunk_size] for i in range(0, len(words), chunk_size)]
+
     srt = ""
-    for i, g in enumerate(groups):
-        s = (i * chunk) / wps
-        e = min(((i+1) * chunk) / wps, audio_duration)
-        srt += f"{i+1}\n{srt_t(s)} --> {srt_t(e)}\n{' '.join(g).upper()}\n\n"
+    for i, group in enumerate(groups):
+        start = (i * chunk_size) / wps
+        end = min(((i + 1) * chunk_size) / wps, audio_duration)
+        # Make sure end > start
+        if end <= start:
+            end = start + 0.3
+        text = " ".join(group).upper()
+        srt += f"{i+1}\n{srt_time(start)} --> {srt_time(end)}\n{text}\n\n"
+
     with open("subs.srt", "w", encoding="utf-8") as f:
         f.write(srt)
-    print(f"✓ Subtitles ready ({len(groups)} lines)")
+    print(f"✓ Subtitles ready ({len(groups)} word groups)")
+
 except Exception as e:
     print(f"⚠️ Subtitle error: {e}")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 10 — Final Video with Subtitles
+# STEP 10 — Render Final Video (58 seconds, subtitles, audio)
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n🔟  Rendering final video...")
+print("\n🔟  Rendering final 58-second video...")
 
-# Subtitle style — bold yellow, TikTok style, word by word
+# Bold yellow TikTok-style word-by-word subtitles
 sub_style = (
     "FontName=Arial Black,"
-    "FontSize=20,"
+    "FontSize=21,"
     "PrimaryColour=&H00FFFF00,"
     "OutlineColour=&H00000000,"
-    "BackColour=&H60000000,"
+    "BackColour=&H70000000,"
     "Bold=1,"
     "Outline=3,"
-    "Shadow=1,"
+    "Shadow=2,"
     "Alignment=2,"
-    "MarginV=100"
+    "MarginV=120"
 )
 
 success = False
 
-# Try with subtitles
+# Attempt 1: with subtitles
 if os.path.exists("subs.srt"):
-    result = os.system(
+    print("   Rendering with subtitles...")
+    cmd = (
         f'ffmpeg -i {bg_video} -i voiceover.mp3 '
         f'-c:v libx264 -c:a aac -b:a 192k '
         f"-vf \"scale=720:1280,subtitles=subs.srt:force_style='{sub_style}'\" "
-        f'-pix_fmt yuv420p -shortest short.mp4 -y 2>/dev/null'
+        f'-pix_fmt yuv420p -t {audio_duration} short.mp4 -y 2>/dev/null'
     )
+    result = os.system(cmd)
     if result == 0 and os.path.exists("short.mp4") and os.path.getsize("short.mp4") > 10000:
         success = True
         print("✓ Video with subtitles created!")
 
-# Fallback without subtitles
+# Attempt 2: without subtitles
 if not success:
-    print("   Retrying without subtitles...")
-    result = os.system(
+    print("   Rendering without subtitles...")
+    cmd2 = (
         f'ffmpeg -i {bg_video} -i voiceover.mp3 '
         f'-c:v libx264 -c:a aac -b:a 192k '
         f'-vf "scale=720:1280" '
-        f'-pix_fmt yuv420p -shortest short.mp4 -y 2>/dev/null'
+        f'-pix_fmt yuv420p -t {audio_duration} short.mp4 -y 2>/dev/null'
     )
-    if result == 0 and os.path.exists("short.mp4") and os.path.getsize("short.mp4") > 10000:
+    result2 = os.system(cmd2)
+    if result2 == 0 and os.path.exists("short.mp4") and os.path.getsize("short.mp4") > 10000:
         success = True
         print("✓ Video created (no subtitles)")
 
 if not success:
-    print("❌ Video creation failed")
+    print("❌ Video creation failed completely")
     exit(1)
 
+# ── Final Stats ────────────────────────────────────────────────────────────────
 size = os.path.getsize("short.mp4")
-print(f"\n✅ ALL DONE! '{topic['title']}' 🎉")
-print(f"📹 Video: {size:,} bytes ({size/1024/1024:.1f} MB)")
-print(f"⏱️  Duration: ~{audio_duration:.0f} seconds")
+
+# Get final video duration
+try:
+    dur_result = subprocess.run(
+        ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+         '-of', 'default=noprint_wrappers=1:nokey=1', 'short.mp4'],
+        capture_output=True, text=True, timeout=10
+    )
+    final_dur = float(dur_result.stdout.strip())
+except Exception:
+    final_dur = audio_duration
+
+print(f"\n{'='*50}")
+print(f"✅ ALL DONE! Psychology Short Created! 🎉")
+print(f"{'='*50}")
+print(f"📹 Title:    {topic['title']}")
+print(f"🎯 Category: {topic['niche']}")
+print(f"⏱️  Duration: {final_dur:.1f} seconds")
+print(f"📦 Size:     {size/1024/1024:.1f} MB")
+print(f"{'='*50}")
 print(f"\n📄 Output files:")
-print(f"   - short.mp4     → upload to YouTube Shorts")
-print(f"   - voiceover.mp3 → audio only")
-print(f"   - script.txt    → voiceover + CTA")
-print(f"   - metadata.txt  → title, description, tags")
+print(f"   short.mp4     → Upload to YouTube Shorts")
+print(f"   voiceover.mp3 → Audio only backup")
+print(f"   script.txt    → Full script + CTA")
+print(f"   metadata.txt  → Title, description, tags")
+print(f"   subs.srt      → Subtitle file")
