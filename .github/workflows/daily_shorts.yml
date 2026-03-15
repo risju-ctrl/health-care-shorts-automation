@@ -23,7 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests
+          pip install requests pillow
 
       - name: Install ffmpeg
         run: sudo apt-get install -y ffmpeg
@@ -32,5 +32,4 @@ jobs:
         env:
           GROQ_API: ${{ secrets.GROQ_API }}
           ELEVENLABS_API: ${{ secrets.ELEVENLABS_API }}
-          FREEPIK_API: ${{ secrets.FREEPIK_API }}
         run: python automation.py
