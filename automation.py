@@ -1,72 +1,69 @@
 import os
 import re
-import math
-import time
 import requests
 import subprocess
-import urllib.parse
 import sys
+import json
 
-# ──────────────────────────────────────────────
-# ENV
-# ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════
+# CONFIG
+# ══════════════════════════════════════════════════════════
 
-GROQ_API       = os.getenv("GROQ_API")        # free — primary LLM
-CLAUDE_API     = os.getenv("CLAUDE_API")       # optional paid fallback
-ELEVENLABS_API = os.getenv("ELEVENLABS_API")
-PEXELS_API     = os.getenv("PEXELS_API")
+GROQ_API       = os.getenv("GROQ_API")       # primary LLM — free
+CLAUDE_API     = os.getenv("CLAUDE_API")      # optional fallback — paid
+ELEVENLABS_API = os.getenv("ELEVENLABS_API")  # voice
 
-VOICE_ID        = "pNInz6obpgDQGcFmaJgB"  # Adam - free on all plans
-TARGET_DURATION = 58
-WORDS_PER_MIN   = 145
-TARGET_WORDS    = int(TARGET_DURATION / 60 * WORDS_PER_MIN)  # ~140
+# ElevenLabs free-tier built-in voices:
+#   Adam   pNInz6obpgDQGcFmaJgB  deep authoritative male     ← default
+#   Antoni ErXwobaYiN019PkySvjV  confident younger male
+#   Rachel 21m00Tcm4TlvDq8ikWAM  calm clear female
+#   Domi   AZnzlk1XvdvUeBnXmlld  strong expressive female
+VOICE_ID = "pNInz6obpgDQGcFmaJgB"
 
-# ──────────────────────────────────────────────
+# ElevenLabs free-tier model — do NOT change unless you upgrade
+ELEVENLABS_MODEL = "eleven_turbo_v2_5"
+
+# Target: 58 seconds at 145 wpm = 140 words
+TARGET_WORDS = 140
+
+# ══════════════════════════════════════════════════════════
 # LOGGING
-# ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════
 
 def log(step: str, msg: str = ""):
     print(f"[{step}] {msg}" if msg else f"[{step}]", flush=True)
 
-# ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════
 # STARTUP VALIDATION
-# ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════
 
-errors = []
-if not GROQ_API:
-    errors.append("GROQ_API — required (free at console.groq.com)")
-if not ELEVENLABS_API:
-    errors.append("ELEVENLABS_API — required for voice generation")
-if not PEXELS_API:
-    errors.append("PEXELS_API — required for video clips")
+missing = []
+if not GROQ_API:       missing.append("GROQ_API       — free at console.groq.com")
+if not ELEVENLABS_API: missing.append("ELEVENLABS_API — free at elevenlabs.io")
 
-if errors:
-    log("ERROR", "Missing GitHub secrets:")
-    for e in errors:
-        log("ERROR", f"  • {e}")
-    log("ERROR", "Go to repo Settings → Secrets → Actions and add them.")
+if missing:
+    log("ERROR", "Missing GitHub secrets — add these in repo Settings → Secrets → Actions:")
+    for m in missing: log("ERROR", f"  • {m}")
     sys.exit(1)
 
+log("CONFIG", f"Voice: {VOICE_ID} | Model: {ELEVENLABS_MODEL} | Target: {TARGET_WORDS} words")
 if CLAUDE_API:
     log("CONFIG", "LLM: Groq (primary) + Claude (fallback)")
 else:
-    log("CONFIG", "LLM: Groq only — add CLAUDE_API secret for fallback")
+    log("CONFIG", "LLM: Groq only")
 
-# ──────────────────────────────────────────────
-# LLM HELPERS — Groq first, Claude fallback
-# ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════
+# LLM — Groq primary, Claude fallback
+# ══════════════════════════════════════════════════════════
 
 def _groq(prompt: str, max_tokens: int) -> str:
     r = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {GROQ_API}",
-            "Content-Type": "application/json",
-        },
+        headers={"Authorization": f"Bearer {GROQ_API}", "Content-Type": "application/json"},
         json={
             "model": "llama-3.3-70b-versatile",
             "max_tokens": max_tokens,
-            "temperature": 0.85,
+            "temperature": 0.9,
             "messages": [{"role": "user", "content": prompt}],
         },
         timeout=60,
@@ -95,504 +92,346 @@ def _claude(prompt: str, max_tokens: int) -> str:
     return r.json()["content"][0]["text"].strip()
 
 
-def llm(prompt: str, max_tokens: int = 1200, step: str = "") -> str:
-    """Try Groq. If it fails, try Claude if available. Raise if both fail."""
+def llm(prompt: str, max_tokens: int = 1000, step: str = "") -> str:
     try:
-        return _groq(prompt, max_tokens)
+        out = _groq(prompt, max_tokens)
+        return out
     except Exception as e:
-        log(step or "LLM", f"Groq error: {e}")
+        log(step or "LLM", f"Groq failed: {e}")
         if CLAUDE_API:
-            log(step or "LLM", "Falling back to Claude...")
+            log(step or "LLM", "Retrying with Claude...")
             try:
                 return _claude(prompt, max_tokens)
             except Exception as e2:
-                log(step or "LLM", f"Claude error: {e2}")
-                raise RuntimeError(f"Both LLMs failed. Last: {e2}") from e2
-        raise RuntimeError(f"Groq failed, no Claude fallback: {e}") from e
+                raise RuntimeError(f"Both LLMs failed. Last error: {e2}") from e2
+        raise RuntimeError(f"Groq failed and no fallback set: {e}") from e
 
 
-# ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════
 # STEP 1 — TITLE
-# ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════
 
 log("TITLE", "Generating...")
 
-title_prompt = """
-You are a top YouTube Shorts strategist for US psychology content.
-Your titles hit 8-12% CTR because you know exactly what makes Americans 18-35 stop scrolling.
+TITLE_PROMPT = """
+You write titles for a US psychology YouTube Shorts channel that gets millions of views.
+Your job is to write ONE title that stops an American 18-35 year old mid-scroll.
 
-Generate ONE viral psychology title.
+WHAT WORKS ON SHORTS:
+Titles that trigger an instant emotional reaction — not curiosity alone, but a gut punch.
+The best titles make the viewer think "wait... is that me?" before they even tap.
 
-HARD RULES:
-- Under 55 characters
-- Triggers: curiosity gap, self-doubt, social fear, or identity threat
-- Plain conversational American English — zero jargon
-- Feels personal, like it's calling the viewer out directly
-- No "this will change your life" overpromising
+PSYCHOLOGICAL TRIGGERS TO USE (pick the strongest one):
+- Identity threat: challenges how they see themselves
+- Social exposure: reveals something embarrassing or hidden
+- Self-sabotage: shows them they're hurting themselves without knowing
+- Blind spot: exposes a pattern they've never noticed
+- Reframe: flips something they thought was a flaw into something else
 
-PROVEN FORMATS (pick one and adapt):
-- Why you [surprising behavior] without realizing it
-- The real reason people [universal behavior]
-- You're not [label] — you're just [reframe]
-- What your [habit] is actually telling you
-- The hidden reason you [relatable struggle]
+FORMAT RULES:
+- Under 52 characters
+- No ALL CAPS
+- No exclamation marks
+- No "this will change your life"
+- No vague words like "mindset" or "growth" alone
+- Must work as a spoken sentence — say it out loud, it should land
+
+BEST PERFORMING FORMATS:
+→ "You're not [X] — you're just [unexpected reframe]"
+→ "Why you [behavior] and can't stop"
+→ "The real reason you [relatable struggle]"
+→ "What [habit/reaction] says about how you were raised"
+→ "You're [doing X] and you don't even see it"
+→ "Stop calling yourself [label] — here's what's really going on"
+
+TOPIC POOL — rotate through these themes, pick whichever feels freshest:
+attachment style, people pleasing, self-sabotage, avoidant behavior,
+overthinking, fear of success, childhood wounds, emotional unavailability,
+social anxiety, imposter syndrome, validation seeking, inner critic,
+fear of abandonment, perfectionism, emotional numbness
 
 Return ONLY the title. No quotes. No period. No explanation.
 """
 
-title = llm(title_prompt, max_tokens=80, step="TITLE").strip('"\'')
-log("TITLE", title)
+title = llm(TITLE_PROMPT, max_tokens=80, step="TITLE").strip('"\'').strip(".")
+log("TITLE", f'"{title}" ({len(title)} chars)')
+
+# Build a clean filename slug from the title
+# e.g. "You're not lazy — you're just scared" -> "youre_not_lazy_youre_just_scared"
+slug = title.lower()
+slug = re.sub(r"['''\u2018\u2019]", "", slug)   # drop apostrophes
+slug = re.sub(r"[^a-z0-9]+", "_", slug)               # non-alphanumeric -> underscore
+slug = slug.strip("_")[:60]                            # cap length, trim edges
+
+SCRIPT_FILE = f"{slug}_script.txt"
+VOICE_FILE  = f"{slug}_voice.mp3"
+META_FILE   = f"{slug}_metadata.txt"
+REPORT_FILE = f"{slug}_report.txt"
+
+log("TITLE", f"Slug: {slug}")
 
 
-# ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════
 # STEP 2 — SCRIPT
-# ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════
 
 log("SCRIPT", "Writing...")
 
-script_prompt = f"""
-Write a YouTube Shorts voiceover script for a US psychology channel.
+SCRIPT_PROMPT = f"""
+You are the head writer for a top US psychology YouTube Shorts channel.
+Your scripts consistently hit 85%+ retention because they make people feel deeply understood.
 
-TOPIC: {title}
-TARGET: exactly {TARGET_WORDS} words (between {TARGET_WORDS - 5} and {TARGET_WORDS + 5})
-AUDIENCE: Americans 18-35 who follow therapy TikTok, self-improvement, and psychology content
+ASSIGNMENT: Write the voiceover script for this Short.
 
-VOICE: Calm, direct, slightly intense. Like a trusted friend who just figured something out.
+TITLE: {title}
+EXACT WORD COUNT REQUIRED: {TARGET_WORDS} words — count every word, hit this number precisely.
+At 145 words per minute this = exactly 58 seconds of audio.
 
-TONE RULES:
-- Second person (you/your) throughout
-- 6th grade reading level
-- No science terms. Say "your brain tricks you" not "cognitive dissonance"
-- Short sentences, average 8 words each
-- One idea per sentence. Never stack two insights.
-- Write how people actually talk
+═══════════════════════════════════
+AUDIENCE PROFILE
+═══════════════════════════════════
+American, 18-35, mostly grew up online.
+They follow: therapy TikTok, self-improvement accounts, true crime, pop psychology.
+They're skeptical of motivational fluff but hungry for real insight.
+They STOP scrolling when something feels uncomfortably true about themselves.
+They SHARE when something articulates something they felt but couldn't name.
 
-STRUCTURE:
-1. HOOK (2 sentences) — Start mid-thought with something uncomfortable that makes the viewer feel seen.
-   Never start with "Have you ever" or "Did you know".
-2. THE INSIGHT (3-4 sentences) — Explain using a metaphor from American daily life:
-   work, social media, dating, money, family.
-3. THE EXAMPLE (3-4 sentences) — A specific mini-story with one real detail that makes it feel true.
-4. THE REFLECTION (2-3 sentences) — Reframe that makes the viewer feel understood not blamed.
-   Final line = quiet revelation, not a motivational quote.
+═══════════════════════════════════
+VOICE & TONE
+═══════════════════════════════════
+- Second person (you/your) the ENTIRE script — never "people" or "they"
+- Sound like a calm, sharp friend talking to you at 11pm — not a lecture
+- Plain American English. 6th grade reading level max.
+- Short punchy sentences. 6-10 words each. Vary the rhythm.
+- NO science terms. Instead of "attachment anxiety" say "that fear of being left"
+- NO therapy-speak. Instead of "set boundaries" say "you stop picking up the phone"
+- Be specific. Specific = believable. Generic = boring.
 
-BANNED:
-- "Have you ever" opener
-- "It's okay to"
-- "Science shows" / "Studies say" / "Research proves"
-- Exclamation marks
-- "at the end of the day" / "the thing is" / "here's the deal" / "in today's world"
-- The word "journey"
+═══════════════════════════════════
+MANDATORY STRUCTURE
+═══════════════════════════════════
 
-Return ONLY the script. No labels. No scene markers. Plain text only.
+[HOOK — first 2 sentences, ~20 words]
+Drop the viewer straight into a moment they've lived.
+The first sentence must create immediate discomfort or recognition.
+Do NOT start with: "Have you ever", "Did you know", "So", "Today".
+Start mid-scene — like you already know something about them.
+
+[INSIGHT — 3-4 sentences, ~40 words]
+Explain the psychology behind it WITHOUT using clinical language.
+Use one concrete metaphor from American everyday life.
+Good metaphor sources: your phone, your car, your job, your group chat, dating apps, Netflix.
+Each sentence = one idea. Never stack two insights in one sentence.
+
+[STORY — 3-4 sentences, ~45 words]
+Tell one ultra-specific mini-scenario that makes it feel real.
+Give it a texture detail — a specific app, a specific moment, a specific feeling.
+The reader should feel like you're describing THEIR life.
+No character names. Keep it "you" the whole time.
+
+[REFRAME — 2 sentences, ~20 words]
+Flip the narrative — this isn't a flaw, here's what it actually means.
+Make the viewer feel understood, not fixed.
+Do NOT end with a motivational quote or advice.
+The last line should land like a quiet revelation.
+
+[CTA — 1 sentence, ~15 words]
+End with a direct, natural call to action.
+It must feel conversational — not like an ad.
+Examples of GOOD CTAs:
+  "Follow for more and save this — you'll want to come back to it."
+  "If this one hit, follow — there's more where that came from."
+  "Drop a comment if this is you, and follow for more."
+  "Follow if you needed to hear this today."
+BANNED CTA phrases: "smash the like button", "don't forget to subscribe", "hit that bell"
+
+═══════════════════════════════════
+ABSOLUTE BANS
+═══════════════════════════════════
+✗ "Have you ever…" as opener
+✗ "It's okay to…"
+✗ "Science shows…" / "Studies say…" / "Research proves…"
+✗ "At the end of the day"
+✗ "Here's the thing" / "The thing is"
+✗ "In today's world" / "In today's society"
+✗ "Journey" / "healing journey" / "your truth"
+✗ Exclamation marks — anywhere
+✗ More than one use of "actually"
+✗ Rhetorical questions mid-script (hook only, if at all)
+
+═══════════════════════════════════
+WORD COUNT RULE
+═══════════════════════════════════
+You MUST write exactly {TARGET_WORDS} words (±3 words maximum).
+Count every word before you return the script.
+If your count is off, rewrite until it's right.
+Short scripts ruin the timing. Do not go under {TARGET_WORDS - 3}.
+
+Return ONLY the plain script text.
+No section labels. No parentheticals. No markdown. Just the words to be spoken.
 """
 
-script = llm(script_prompt, max_tokens=600, step="SCRIPT")
-word_count = len(script.split())
-log("SCRIPT", f"{word_count} words")
+script = llm(SCRIPT_PROMPT, max_tokens=700, step="SCRIPT")
 
-with open("script.txt", "w") as f:
+# Strip any labels the model might accidentally add
+script = re.sub(r"\[(HOOK|INSIGHT|STORY|REFRAME|CTA)[^\]]*\]\s*", "", script, flags=re.IGNORECASE).strip()
+
+word_count = len(script.split())
+log("SCRIPT", f"{word_count} words (target: {TARGET_WORDS})")
+
+# Warn if significantly off target
+if word_count < TARGET_WORDS - 10:
+    log("SCRIPT", f"WARNING: Script is {TARGET_WORDS - word_count} words short — audio may be under 58s")
+elif word_count > TARGET_WORDS + 10:
+    log("SCRIPT", f"WARNING: Script is {word_count - TARGET_WORDS} words long — audio may exceed 58s")
+
+with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
+    f.write(f"TITLE: {title}\n")
+    f.write(f"WORD COUNT: {word_count}\n")
+    f.write("─" * 50 + "\n\n")
     f.write(script)
 
-
-# ──────────────────────────────────────────────
-# STEP 3 — SCENE DESCRIPTIONS
-# ──────────────────────────────────────────────
-
-log("SCENES", "Building visual descriptions...")
-
-raw_scene_count = max(10, min(15, math.ceil(word_count / 9)))
-clip_duration   = round(TARGET_DURATION / raw_scene_count, 2)
-
-scene_prompt = f"""
-Split this script into exactly {raw_scene_count} visual scenes for a YouTube Short.
-
-RULES:
-- Each scene covers roughly 9 spoken words
-- Cover the ENTIRE script in order
-- Every scene must be a DISTINCT setting — no two scenes can look the same
-- Descriptions must work as stock footage search terms
-
-EXACT FORMAT — use this for every scene:
-
-SCENE_START
-Lines: [~9 words from the script this scene covers]
-Visual: [one sentence: specific US setting, action, lighting. Photorealistic. No text in frame.]
-SCENE_END
-
-Script:
-{script}
-"""
-
-scene_raw = llm(scene_prompt, max_tokens=2000, step="SCENES")
-
-visuals = []
-for block in scene_raw.split("SCENE_START"):
-    if "Visual:" in block:
-        for line in block.split("\n"):
-            if line.strip().startswith("Visual:"):
-                visuals.append(line.replace("Visual:", "").strip())
-                break
-
-if not visuals:
-    log("SCENES", "Parse failed — using built-in fallback visuals")
-    fallback_visuals = [
-        "person sitting alone at a coffee shop window, city lights at night",
-        "close up of hands scrolling a phone, warm lamp light in a bedroom",
-        "young man staring at the ceiling in a dark room, soft window light",
-        "woman walking alone on an empty city sidewalk at dusk",
-        "close up of a face reflected in a car window, emotional expression",
-        "person typing a message then deleting it on their phone, kitchen",
-        "overhead shot of a person lying on a bed staring up",
-        "silhouette of a person at a window watching rain outside",
-        "hands wrapped around a coffee mug, soft morning light on a table",
-        "person sitting alone on apartment steps at night, streetlight above",
-        "close up of eyes staring into the distance, blurred background",
-        "person leaning against a wall in a hallway, head slightly down",
-    ]
-    visuals = (fallback_visuals * math.ceil(raw_scene_count / len(fallback_visuals)))[:raw_scene_count]
-
-log("SCENES", f"{len(visuals)} scenes")
+log("SCRIPT", f"{SCRIPT_FILE} saved")
 
 
-# ──────────────────────────────────────────────
-# STEP 4 — PEXELS VIDEO CLIPS
-# ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════
+# STEP 3 — VOICE (ElevenLabs)
+# ══════════════════════════════════════════════════════════
 
-log("PEXELS", "Building search queries...")
+log("VOICE", "Generating audio...")
 
-query_prompt = f"""
-Convert each visual description below into a 2-4 word Pexels stock video search query.
-Only keep the physical subject and main action. Remove lighting, mood, and style words.
-Short concrete queries work best on Pexels.
-
-Reply with one query per line, numbered. Nothing else.
-
-Visuals:
-{chr(10).join(f"{i+1}. {v}" for i, v in enumerate(visuals))}
-"""
-
-query_raw = llm(query_prompt, max_tokens=500, step="PEXELS")
-
-queries = []
-for line in query_raw.strip().split("\n"):
-    clean = re.sub(r"^\d+[\.\)\-\s]+", "", line).strip()
-    if clean:
-        queries.append(clean)
-
-while len(queries) < len(visuals):
-    queries.append("person alone thinking")
-queries = queries[:len(visuals)]
-
-log("PEXELS", f"Sample queries: {queries[:4]}")
-
-
-PEXELS_FALLBACKS = [
-    "person thinking",
-    "person alone city night",
-    "emotional person window",
-    "person walking urban",
-    "contemplative person indoors",
-    "person sitting alone",
-]
-
-
-def pexels_clip(query: str, filename: str, min_dur: int = 4) -> bool:
-    url = (
-        "https://api.pexels.com/videos/search"
-        f"?query={urllib.parse.quote(query)}"
-        "&orientation=portrait&per_page=15&size=medium"
-    )
-    try:
-        res = requests.get(url, headers={"Authorization": PEXELS_API}, timeout=15)
-        res.raise_for_status()
-        videos = res.json().get("videos", [])
-    except Exception as e:
-        log("PEXELS", f"  API error '{query}': {e}")
-        return False
-
-    for v in videos:
-        if v.get("duration", 0) < min_dur:
-            continue
-        vfiles = v.get("video_files", [])
-        portrait = [f for f in vfiles if f.get("height", 0) >= f.get("width", 1)]
-        ranked = sorted(portrait or vfiles, key=lambda x: x.get("height", 0), reverse=True)
-        if not ranked:
-            continue
-        try:
-            r = requests.get(ranked[0]["link"], timeout=45, stream=True)
-            with open(filename, "wb") as fh:
-                for chunk in r.iter_content(chunk_size=65536):
-                    fh.write(chunk)
-            if os.path.exists(filename) and os.path.getsize(filename) > 50_000:
-                return True
-        except Exception as e:
-            log("PEXELS", f"  Download error: {e}")
-            if os.path.exists(filename):
-                os.remove(filename)
-
-    return False
-
-
-raw_clips = []
-min_dur = max(3, math.ceil(clip_duration))
-
-for i, q in enumerate(queries):
-    fname = f"raw_{i}.mp4"
-    if pexels_clip(q, fname, min_dur=min_dur):
-        raw_clips.append(fname)
-        log("PEXELS", f"  ✓ {i+1}/{len(queries)}: {q}")
-    else:
-        downloaded = False
-        for fb in PEXELS_FALLBACKS:
-            if pexels_clip(fb, fname, min_dur=3):
-                raw_clips.append(fname)
-                log("PEXELS", f"  ↩ {i+1}/{len(queries)}: fallback '{fb}'")
-                downloaded = True
-                break
-        if not downloaded:
-            log("PEXELS", f"  ✗ {i+1}/{len(queries)}: skipped")
-    time.sleep(0.3)
-
-if len(raw_clips) < 5:
-    log("ERROR", f"Only {len(raw_clips)} clips downloaded — need at least 5.")
-    log("ERROR", "Check that PEXELS_API secret is correct and not expired.")
-    sys.exit(1)
-
-log("PEXELS", f"{len(raw_clips)} clips ready")
-
-
-# ──────────────────────────────────────────────
-# STEP 5 — VOICE (ElevenLabs)
-# ──────────────────────────────────────────────
-
-log("VOICE", "Generating...")
+voice_payload = {
+    "text": script,
+    "model_id": ELEVENLABS_MODEL,
+    "voice_settings": {
+        "stability": 0.40,          # slight natural variation
+        "similarity_boost": 0.80,   # stays close to the voice character
+        "style": 0.30,              # expressiveness — higher = more emotional range
+        "use_speaker_boost": True,  # clarity boost
+    },
+}
 
 voice_res = requests.post(
     f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}",
     headers={"xi-api-key": ELEVENLABS_API, "Content-Type": "application/json"},
-    json={
-        "text": script,
-        "model_id": "eleven_turbo_v2_5",
-        "voice_settings": {
-            "stability": 0.45,
-            "similarity_boost": 0.80,
-            "style": 0.25,
-            "use_speaker_boost": True,
-        },
-    },
+    json=voice_payload,
     timeout=90,
 )
 
 if not voice_res.ok:
-    log("ERROR", f"ElevenLabs {voice_res.status_code}: {voice_res.text[:200]}")
+    log("ERROR", f"ElevenLabs {voice_res.status_code}: {voice_res.text[:300]}")
+    log("ERROR", "Common causes:")
+    log("ERROR", "  401 → wrong or expired ELEVENLABS_API key")
+    log("ERROR", "  402 → free plan limit hit or voice requires paid plan")
+    log("ERROR", "  422 → script too long or contains unsupported characters")
     sys.exit(1)
 
-with open("voice.mp3", "wb") as f:
+with open(VOICE_FILE, "wb") as f:
     f.write(voice_res.content)
 
+# Verify the file is real audio (not an error page written as mp3)
+if os.path.getsize(VOICE_FILE) < 10_000:
+    log("ERROR", f"{VOICE_FILE} is suspiciously small — ElevenLabs likely returned an error body")
+    sys.exit(1)
+
+# Get actual audio duration via ffprobe
 probe = subprocess.run(
     ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-     "-of", "default=noprint_wrappers=1:nokey=1", "voice.mp3"],
+     "-of", "default=noprint_wrappers=1:nokey=1", VOICE_FILE],
     capture_output=True, text=True,
 )
 try:
     actual_duration = float(probe.stdout.strip())
+    log("VOICE", f"{VOICE_FILE} saved — {actual_duration:.1f}s | {os.path.getsize(VOICE_FILE)//1024}KB")
 except (ValueError, AttributeError):
-    actual_duration = TARGET_DURATION
-    log("VOICE", "ffprobe parse failed — using target duration")
-
-log("VOICE", f"{actual_duration:.1f}s")
+    log("VOICE", f"{VOICE_FILE} saved — {os.path.getsize(VOICE_FILE)//1024}KB (duration unknown)")
+    actual_duration = None
 
 
-# ──────────────────────────────────────────────
-# STEP 6 — PROCESS CLIPS
-# ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════
+# STEP 4 — METADATA
+# ══════════════════════════════════════════════════════════
 
-log("VIDEO", "Processing clips to 9:16...")
+log("META", "Generating metadata...")
 
-per_clip = actual_duration / len(raw_clips)
-processed = []
+META_PROMPT = f"""
+Write complete YouTube Shorts upload metadata for a US psychology channel.
+Target audience: Americans 18-35. Goal: maximum clicks, saves, and follows.
 
-for i, c in enumerate(raw_clips):
-    out = f"proc_{i}.mp4"
-    cmd = (
-        f'ffmpeg -y -i "{c}" '
-        f'-vf "crop=ih*9/16:ih,scale=720:1280,setsar=1" '
-        f'-t {per_clip:.3f} '
-        f'-r 30 -c:v libx264 -preset fast -crf 23 '
-        f'-an "{out}"'
-    )
-    res = subprocess.run(cmd, shell=True, capture_output=True)
-    if res.returncode == 0 and os.path.exists(out) and os.path.getsize(out) > 10_000:
-        processed.append(out)
-    else:
-        log("VIDEO", f"  ✗ proc {i}: {res.stderr[-150:].decode(errors='ignore')}")
+TITLE: {title}
+SCRIPT OPENING: {" ".join(script.split()[:25])}...
 
-if not processed:
-    log("ERROR", "Zero clips processed. Aborting.")
-    sys.exit(1)
-
-log("VIDEO", f"{len(processed)} clips at {per_clip:.2f}s each")
-
-
-# ──────────────────────────────────────────────
-# STEP 7 — CONCAT SILENT VIDEO
-# ──────────────────────────────────────────────
-
-log("VIDEO", "Concatenating...")
-
-with open("list.txt", "w") as f:
-    for p in processed:
-        f.write(f"file '{p}'\n")
-
-concat = subprocess.run(
-    "ffmpeg -y -f concat -safe 0 -i list.txt -c copy silent.mp4",
-    shell=True, capture_output=True, text=True,
-)
-if concat.returncode != 0:
-    log("ERROR", f"Concat failed: {concat.stderr[-400:]}")
-    sys.exit(1)
-
-log("VIDEO", "Silent video ready")
-
-
-# ──────────────────────────────────────────────
-# STEP 8 — SUBTITLES
-# ──────────────────────────────────────────────
-
-log("SUBTITLES", "Generating SRT...")
-
-subtitle_prompt = f"""
-Generate an SRT subtitle file for this voiceover.
-
-Speech rate: {WORDS_PER_MIN} words per minute
-Total duration: {actual_duration:.1f} seconds
-
-RULES:
-- 2-4 words per caption line
-- Time proportionally by word count
-- Capitalize first word only
-- No punctuation except commas mid-sentence and a period at sentence end
-- Strict SRT format:
-
-1
-00:00:00,000 --> 00:00:02,000
-Caption text here
-
-2
-00:00:02,000 --> 00:00:04,000
-Next caption here
-
-Return ONLY the SRT. No markdown fences. No explanation.
-
-Script:
-{script}
-"""
-
-srt_raw = llm(subtitle_prompt, max_tokens=2500, step="SUBTITLES")
-srt_clean = re.sub(r"```[a-zA-Z]*\n?", "", srt_raw).strip()
-
-has_subs = "-->" in srt_clean
-if has_subs:
-    with open("subtitles.srt", "w", encoding="utf-8") as f:
-        f.write(srt_clean)
-    log("SUBTITLES", "SRT ready")
-else:
-    log("SUBTITLES", "Invalid SRT — skipping captions")
-
-
-# ──────────────────────────────────────────────
-# STEP 9 — FINAL RENDER
-# ──────────────────────────────────────────────
-
-log("VIDEO", "Final render...")
-
-def build_final(with_subs: bool) -> int:
-    if with_subs:
-        srt_path = os.path.abspath("subtitles.srt").replace("\\", "/").replace(":", "\\:")
-        vf = (
-            f"scale=720:1280,"
-            f"subtitles='{srt_path}':force_style='"
-            "FontName=Arial,FontSize=20,Bold=1,"
-            "PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H00000000,"
-            "Outline=2,Shadow=1,"
-            "Alignment=2,MarginV=80'"
-        )
-    else:
-        vf = "scale=720:1280"
-
-    cmd = (
-        f'ffmpeg -y '
-        f'-i silent.mp4 '
-        f'-i voice.mp3 '
-        f'-vf "{vf}" '
-        f'-c:v libx264 -preset fast -crf 22 '
-        f'-c:a aac -b:a 128k '
-        f'-t {actual_duration:.3f} '
-        f'-shortest '
-        f'-movflags +faststart '
-        f'short.mp4'
-    )
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    if result.returncode != 0:
-        log("VIDEO", f"FFmpeg stderr: {result.stderr[-400:]}")
-    return result.returncode
-
-
-code = build_final(with_subs=has_subs)
-
-if code != 0 and has_subs:
-    log("VIDEO", "Subtitle render failed — retrying without captions")
-    code = build_final(with_subs=False)
-
-if code != 0:
-    log("ERROR", "Final render failed on both attempts. Aborting.")
-    sys.exit(1)
-
-mode = "with captions" if has_subs else "without captions (libass not available)"
-log("VIDEO", f"Rendered {mode}")
-
-
-# ──────────────────────────────────────────────
-# STEP 10 — METADATA
-# ──────────────────────────────────────────────
-
-log("META", "Writing...")
-
-meta_prompt = f"""
-Write YouTube Shorts upload metadata for a US psychology channel targeting viewers 18-35.
-
-Title: {title}
-Script opening: {' '.join(script.split()[:30])}...
-
-Output in this EXACT format:
+OUTPUT THIS EXACT FORMAT — no extra text, no labels other than the ones below:
 
 TITLE:
 {title}
 
 DESCRIPTION:
-[2-3 sentences under 200 chars total. Hook the topic, tease the insight, CTA to follow]
+[Write 2 punchy sentences under 180 characters TOTAL.
+Sentence 1: Hook — make it sound irresistible to tap.
+Sentence 2: CTA — "Follow for more psychology content like this."
+No hashtags in the description.]
 
 HASHTAGS:
-[10 hashtags on one line: mix broad (#psychology #mindset) and niche (#darkpsychology #behaviortok)]
+[15 hashtags on a single line, space-separated.
+Mix: broad reach (#psychology #mentalhealth #selfimprovement)
++ niche engagement (#darkpsychology #attachmentstyle #therapytok #behaviortok #mindtok)
++ trending formats (#storytime #didyouknow #learnontiktok)
+Start each with #]
 
-TAGS_CSV:
-[20 comma-separated YouTube tags, no # symbol]
+TAGS:
+[25 comma-separated tags for the YouTube tag field. No # symbol.
+Mix keyword types: topic tags, behavior tags, audience tags, question-form tags.
+Examples: psychology facts, why you overthink, dark psychology, human behavior,
+self improvement, stop people pleasing, attachment theory explained,
+emotional intelligence, why am I like this, psychology of behavior]
+
+SUGGESTED UPLOAD TIME:
+[Best time to post for US audience engagement — give day and time in ET]
+
+THUMBNAIL HOOK:
+[One sentence: what text/image would make the strongest thumbnail for this topic]
 """
 
-meta = llm(meta_prompt, max_tokens=400, step="META")
-with open("metadata.txt", "w") as f:
-    f.write(meta)
+meta_raw = llm(META_PROMPT, max_tokens=600, step="META")
 
-log("META", "metadata.txt saved")
+with open(META_FILE, "w", encoding="utf-8") as f:
+    f.write(meta_raw)
+
+log("META", f"{META_FILE} saved")
 
 
-# ──────────────────────────────────────────────
-# DONE
-# ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════
+# STEP 5 — CONTENT REPORT
+# ══════════════════════════════════════════════════════════
 
-size_mb = os.path.getsize("short.mp4") / 1_048_576
-log("DONE", f"short.mp4 — {size_mb:.1f} MB | {actual_duration:.1f}s | {word_count} words")
-log("DONE", f"Title: {title}")
+log("REPORT", "Writing content report...")
+
+duration_str = f"{actual_duration:.1f}s" if actual_duration else "unknown"
+
+report = f"""
+╔══════════════════════════════════════════════════════╗
+║           AI PSYCHOLOGY SHORTS — RUN REPORT          ║
+╚══════════════════════════════════════════════════════╝
+
+TITLE:        {title}
+WORD COUNT:   {word_count} words  (target: {TARGET_WORDS})
+AUDIO:        {duration_str}  (target: 58s)
+VOICE ID:     {VOICE_ID}
+MODEL:        {ELEVENLABS_MODEL}
+
+OUTPUT FILES:
+  {SCRIPT_FILE}    — full script with title and word count
+  {VOICE_FILE}     — final voiceover audio
+  {META_FILE}  — title, description, hashtags, tags
+
+SCRIPT PREVIEW (first 3 sentences):
+{". ".join(script.split(". ")[:3])}.
+
+""".strip()
+
+with open(REPORT_FILE, "w", encoding="utf-8") as f:
+    f.write(report)
+
+print("\n" + report + "\n")
+log("DONE", f"All files ready: {SCRIPT_FILE} | {VOICE_FILE} | {META_FILE} | {REPORT_FILE}")
