@@ -14,19 +14,14 @@ from gtts import gTTS
 # CONFIG
 # ══════════════════════════════════════════════════════════
 
-GROQ_API       = os.getenv("GROQ_API")
-CLAUDE_API     = os.getenv("CLAUDE_API")
+GROQ_API = os.getenv("GROQ_API")
+CLAUDE_API = os.getenv("CLAUDE_API")
 ELEVENLABS_API = os.getenv("ELEVENLABS_API")
-PEXELS_API     = os.getenv("PEXELS_API")
+PEXELS_API = os.getenv("PEXELS_API")
 
-USE_TRENDS     = os.getenv("USE_TRENDS", "1") == "1"
+USE_TRENDS = os.getenv("USE_TRENDS", "1") == "1"
 
-# ── VOICE SELECTION ───────────────────────────────────────────────────────────
-# US Healthcare News & Explainers niche requires:
-# clear, trustworthy, calm American delivery.
-# The voice should sound like a smart explainer, not a dramatic narrator.
-# Best tone: simple, reassuring, useful, direct.
-VOICE_ID = "nPczCjzI2devNBz1zQrb"   # Brian
+VOICE_ID = "nPczCjzI2devNBz1zQrb"  # Brian
 ELEVENLABS_MODEL = "eleven_turbo_v2_5"
 
 TARGET_WORDS = 150
@@ -61,7 +56,7 @@ log("CONFIG", f"Voice: {VOICE_ID} | Model: {ELEVENLABS_MODEL} | Target: {TARGET_
 log("CONFIG", f"Use Trends: {USE_TRENDS} | Claude fallback: {'yes' if CLAUDE_API else 'no'} | Pexels: {'yes' if PEXELS_API else 'no'}")
 
 # ══════════════════════════════════════════════════════════
-# LLM LAYER — Groq primary, Claude fallback
+# LLM
 # ══════════════════════════════════════════════════════════
 
 def _groq(prompt: str, max_tokens: int, temperature: float = 0.8) -> str:
@@ -69,7 +64,7 @@ def _groq(prompt: str, max_tokens: int, temperature: float = 0.8) -> str:
         "https://api.groq.com/openai/v1/chat/completions",
         headers={
             "Authorization": f"Bearer {GROQ_API}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         },
         json={
             "model": "llama-3.3-70b-versatile",
@@ -115,7 +110,7 @@ def llm(prompt: str, max_tokens: int = 1000, step: str = "", temperature: float 
         raise RuntimeError(f"Groq failed and no fallback set: {e}") from e
 
 # ══════════════════════════════════════════════════════════
-# UTILITIES
+# HELPERS
 # ══════════════════════════════════════════════════════════
 
 def count_words(text: str) -> int:
@@ -182,7 +177,7 @@ def get_audio_duration(path: str):
         return None
 
 # ══════════════════════════════════════════════════════════
-# EVERGREEN TOPICS
+# TOPICS
 # ══════════════════════════════════════════════════════════
 
 EVERGREEN_TOPICS = [
@@ -271,7 +266,7 @@ HEALTH_KEYWORDS = [
 ]
 
 # ══════════════════════════════════════════════════════════
-# TRENDS — FREE SIMPLE INGESTION
+# TRENDS
 # ══════════════════════════════════════════════════════════
 
 def is_health_related(text: str) -> bool:
@@ -387,8 +382,7 @@ _topic_hook_type = selected_topic["hook_type"]
 topic_source = selected_topic["source"]
 
 # ══════════════════════════════════════════════════════════
-# STEP 1 — COMPACT CONTENT PACK
-# title + alt titles + thumbnail hook + cta + script
+# STEP 1 — CONTENT PACK
 # ══════════════════════════════════════════════════════════
 
 log("CONTENT", "Generating title + alt titles + script + thumbnail hook...")
@@ -428,7 +422,7 @@ HOOK PRIORITY:
   5. food or sleep habits with hidden effects
 
 RULES FOR TITLE:
-- {TITLE_MIN}-{TITLE_MAX} characters
+- 40-58 characters
 - plain American English
 - no ALL CAPS
 - no exclamation marks
@@ -452,7 +446,7 @@ RULES FOR CTA:
 - use follow, save, share, or comment
 
 RULES FOR SCRIPT:
-- exactly {TARGET_WORDS} words
+- exactly 150 words
 - 55 to 60 second spoken flow
 - plain American English
 - clear, useful, calm, direct
@@ -483,7 +477,7 @@ content_raw = llm(CONTENT_PACK_PROMPT, max_tokens=1400, step="CONTENT", temperat
 content_data = safe_json_loads(content_raw)
 
 if not content_data:
-    log("CONTENT", "JSON parse failed — retrying with stricter repair prompt...")
+    log("CONTENT", "JSON parse failed — retrying...")
     repair_prompt = f"""
 Fix this into valid JSON only.
 
@@ -593,23 +587,22 @@ VIDEO_PROMPT_FILE = f"{slug}_video_prompts.txt"
 REPORT_FILE = f"{slug}_report.txt"
 DEBUG_FILE = f"{slug}_debug.json"
 
-with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
-    f.write(f"TITLE: {title}\n")
-    f.write(f"ALT TITLES: {', '.join(alt_titles) if alt_titles else 'N/A'}\n")
-    f.write(f"TOPIC: {_topic_name}\n")
-    f.write(f"ANGLE: {_topic_angle}\n")
-    f.write(f"SOURCE: {topic_source}\n")
-    f.write(f"HOOK TYPE: {_topic_hook_type}\n")
-    f.write(f"THUMBNAIL HOOK: {thumbnail_hook}\n")
-    f.write(f"WORD COUNT: {word_count}\n")
-    f.write("─" * 50 + "\n\n")
-    f.write(script)
-
+script_header = (
+    f"TITLE: {title}\n"
+    f"ALT TITLES: {', '.join(alt_titles) if alt_titles else 'N/A'}\n"
+    f"TOPIC: {_topic_name}\n"
+    f"ANGLE: {_topic_angle}\n"
+    f"SOURCE: {topic_source}\n"
+    f"HOOK TYPE: {_topic_hook_type}\n"
+    f"THUMBNAIL HOOK: {thumbnail_hook}\n"
+    f"WORD COUNT: {word_count}\n"
+    + ("─" * 50) + "\n\n"
+)
+save_text(SCRIPT_FILE, script_header + script)
 log("SCRIPT", f"{SCRIPT_FILE} saved")
 
 # ══════════════════════════════════════════════════════════
 # STEP 2 — METADATA + VISUAL PACK
-# description + hashtags + tags + upload time + 5 scenes
 # ══════════════════════════════════════════════════════════
 
 log("PACK", "Generating metadata + visuals pack...")
@@ -654,20 +647,13 @@ RULES:
 - visuals should be realistic stock-footage friendly
 - use plain American English
 - do not use fake medical claims
-
-Scene plan structure:
-1. Hook
-2. Explanation
-3. Real-life impact
-4. Takeaway
-5. CTA / closing
 """
 
 pack_raw = llm(PACK_PROMPT, max_tokens=1500, step="PACK", temperature=0.7)
 pack_data = safe_json_loads(pack_raw)
 
 if not pack_data:
-    log("PACK", "JSON parse failed — retrying repair...")
+    log("PACK", "JSON parse failed — retrying...")
     repair_pack_prompt = f"""
 Fix this into valid JSON only.
 
@@ -734,9 +720,238 @@ while len(tags) < 25:
         if len(tags) == 25:
             break
 
-meta_text = f"""TITLE:
-{title}
+meta_text = (
+    f"TITLE:\n{title}\n\n"
+    f"ALT TITLES:\n"
+    f"{alt_titles[0] if len(alt_titles) > 0 else 'N/A'}\n"
+    f"{alt_titles[1] if len(alt_titles) > 1 else 'N/A'}\n\n"
+    f"DESCRIPTION:\n{description}\n\n"
+    f"HASHTAGS:\n{' '.join(hashtags)}\n\n"
+    f"TAGS:\n{', '.join(tags)}\n\n"
+    f"SUGGESTED UPLOAD TIME:\n{suggested_upload_time}\n\n"
+    f"THUMBNAIL HOOK:\n{thumbnail_hook}\n"
+)
+save_text(META_FILE, meta_text)
+log("META", f"{META_FILE} saved")
 
-ALT TITLES:
-{alt_titles[0] if len(alt_titles) > 0 else "N/A"}
-{alt_titles[1] if len(alt_titles) > 1 else "N/A"}
+visual_lines = []
+visual_lines.append(f"TITLE: {title}")
+visual_lines.append(f"THUMBNAIL HOOK: {thumbnail_hook}")
+visual_lines.append("")
+visual_lines.append("SCENE PLAN:")
+
+for scene in scene_plan[:5]:
+    num = scene.get("scene", "?")
+    voice_part = scene.get("voice_part", "")
+    visual_idea = scene.get("visual_idea", "")
+    caption_overlay = scene.get("caption_overlay", "")
+    pexels_keywords = scene.get("pexels_keywords", [])
+
+    visual_lines.append(f"\nScene {num}")
+    visual_lines.append(f"Voice Part: {voice_part}")
+    visual_lines.append(f"Visual Idea: {visual_idea}")
+    visual_lines.append(f"Caption Overlay: {caption_overlay}")
+    visual_lines.append(f"Pexels Keywords: {', '.join(pexels_keywords)}")
+
+save_text(VISUAL_FILE, "\n".join(visual_lines))
+log("VISUALS", f"{VISUAL_FILE} saved")
+
+# ══════════════════════════════════════════════════════════
+# STEP 2B — VIDEO PRODUCTION PROMPTS
+# ══════════════════════════════════════════════════════════
+
+video_prompt_lines = []
+video_prompt_lines.append(f"TITLE: {title}")
+video_prompt_lines.append(f"TOPIC: {_topic_name}")
+video_prompt_lines.append(f"THUMBNAIL HOOK: {thumbnail_hook}")
+video_prompt_lines.append("")
+video_prompt_lines.append("AI VIDEO PRODUCTION GUIDE")
+video_prompt_lines.append("")
+
+for scene in scene_plan[:5]:
+    num = scene.get("scene", "?")
+    voice_part = scene.get("voice_part", "")
+    visual_idea = scene.get("visual_idea", "")
+    caption_overlay = scene.get("caption_overlay", "")
+    pexels_keywords = scene.get("pexels_keywords", [])
+
+    video_prompt_lines.append(f"Scene {num}")
+    video_prompt_lines.append(f"Voice Purpose: {voice_part}")
+    video_prompt_lines.append(f"Best Visual Direction: {visual_idea}")
+    video_prompt_lines.append(
+        f"AI Video Prompt: Realistic vertical 9:16 healthcare explainer scene showing {visual_idea.lower()}, modern American setting, natural lighting, cinematic but realistic, subtle camera motion, highly detailed, clean composition"
+    )
+    video_prompt_lines.append(f"Stock Footage Prompt: {', '.join(pexels_keywords)}")
+    video_prompt_lines.append(f"On-Screen Text: {caption_overlay}")
+    video_prompt_lines.append("Edit Style: Fast Shorts pacing, bold readable captions, subtle zoom-ins, quick clean cuts, mobile-first framing")
+    video_prompt_lines.append("")
+
+save_text(VIDEO_PROMPT_FILE, "\n".join(video_prompt_lines))
+log("VIDEO", f"{VIDEO_PROMPT_FILE} saved")
+
+# ══════════════════════════════════════════════════════════
+# STEP 3 — OPTIONAL PEXELS LOOKUP
+# ══════════════════════════════════════════════════════════
+
+pexels_results = []
+
+def pexels_search(query: str, per_page: int = 3) -> List[Dict]:
+    if not PEXELS_API:
+        return []
+    try:
+        r = requests.get(
+            "https://api.pexels.com/videos/search",
+            headers={"Authorization": PEXELS_API},
+            params={"query": query, "per_page": per_page},
+            timeout=30,
+        )
+        r.raise_for_status()
+        return r.json().get("videos", [])
+    except Exception as e:
+        log("PEXELS", f"Search failed for '{query}': {e}")
+        return []
+
+if PEXELS_API and scene_plan:
+    log("PEXELS", "Searching stock footage ideas...")
+    for scene in scene_plan[:5]:
+        keywords = scene.get("pexels_keywords", [])
+        if keywords:
+            query = keywords[0]
+            results = pexels_search(query, per_page=2)
+            pexels_results.append({
+                "scene": scene.get("scene"),
+                "query": query,
+                "results_found": len(results),
+                "video_urls": [v.get("url") for v in results[:2] if v.get("url")]
+            })
+
+# ══════════════════════════════════════════════════════════
+# STEP 4 — VOICE
+# ══════════════════════════════════════════════════════════
+
+log("VOICE", "Generating audio...")
+
+actual_duration = None
+voice_provider = "none"
+
+voice_payload = {
+    "text": script,
+    "model_id": ELEVENLABS_MODEL,
+    "voice_settings": {
+        "stability": 0.45,
+        "similarity_boost": 0.78,
+        "style": 0.22,
+        "use_speaker_boost": True,
+    },
+}
+
+try:
+    voice_res = requests.post(
+        f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}",
+        headers={
+            "xi-api-key": ELEVENLABS_API,
+            "Content-Type": "application/json"
+        },
+        json=voice_payload,
+        timeout=90,
+    )
+
+    if voice_res.ok:
+        with open(VOICE_FILE, "wb") as f:
+            f.write(voice_res.content)
+
+        if os.path.getsize(VOICE_FILE) >= MIN_AUDIO_FILESIZE:
+            actual_duration = get_audio_duration(VOICE_FILE)
+            voice_provider = "elevenlabs"
+            log("VOICE", f"ElevenLabs success — {VOICE_FILE} saved")
+        else:
+            raise RuntimeError("ElevenLabs returned suspiciously small audio file")
+    else:
+        raise RuntimeError(f"ElevenLabs {voice_res.status_code}: {voice_res.text[:300]}")
+
+except Exception as e:
+    log("VOICE", f"ElevenLabs failed: {e}")
+    log("VOICE", "Falling back to gTTS...")
+
+    try:
+        tts = gTTS(text=script, lang="en", tld="com")
+        tts.save(VOICE_FILE)
+        actual_duration = get_audio_duration(VOICE_FILE)
+        voice_provider = "gtts"
+        log("VOICE", f"gTTS success — {VOICE_FILE} saved")
+    except Exception as e2:
+        log("VOICE", f"gTTS also failed: {e2}")
+        voice_provider = "none"
+
+if actual_duration:
+    log("VOICE", f"Audio duration: {actual_duration:.1f}s | Provider: {voice_provider}")
+else:
+    log("VOICE", f"No audio generated | Provider: {voice_provider}")
+
+# ══════════════════════════════════════════════════════════
+# STEP 5 — DEBUG + REPORT
+# ══════════════════════════════════════════════════════════
+
+debug_payload = {
+    "selected_topic": selected_topic,
+    "considered_trends": considered_trends,
+    "title": title,
+    "alt_titles": alt_titles,
+    "thumbnail_hook": thumbnail_hook,
+    "cta": cta,
+    "word_count": word_count,
+    "audio_duration": actual_duration,
+    "voice_provider": voice_provider,
+    "scene_plan": scene_plan,
+    "pexels_results": pexels_results,
+}
+
+save_text(DEBUG_FILE, json.dumps(debug_payload, indent=2))
+log("DEBUG", f"{DEBUG_FILE} saved")
+
+duration_str = f"{actual_duration:.1f}s" if actual_duration else "unknown"
+
+report = (
+    "╔══════════════════════════════════════════════════════╗\n"
+    "║   FREE-TIER HEALTHCARE SHORTS — RUN REPORT          ║\n"
+    "╚══════════════════════════════════════════════════════╝\n\n"
+    f"TITLE:        {title}\n"
+    f"ALT TITLES:   {alt_titles}\n"
+    f"TOPIC:        {_topic_name}\n"
+    f"ANGLE:        {_topic_angle}\n"
+    f"SOURCE:       {topic_source}\n"
+    f"HOOK TYPE:    {_topic_hook_type}\n"
+    f"WORD COUNT:   {word_count} words  (target: {TARGET_WORDS})\n"
+    f"AUDIO:        {duration_str}\n"
+    f"VOICE ID:     {VOICE_ID}\n"
+    f"VOICE USED:   {voice_provider}\n"
+    f"MODEL:        {ELEVENLABS_MODEL if voice_provider == 'elevenlabs' else 'gTTS fallback or none'}\n\n"
+    f"THUMBNAIL HOOK:\n  {thumbnail_hook}\n\n"
+    f"SUGGESTED UPLOAD TIME:\n  {suggested_upload_time}\n\n"
+    "OUTPUT FILES:\n"
+    f"  {SCRIPT_FILE}\n"
+    f"  {META_FILE}\n"
+    f"  {VISUAL_FILE}\n"
+    f"  {VIDEO_PROMPT_FILE}\n"
+    f"  {REPORT_FILE}\n"
+    f"  {DEBUG_FILE}\n"
+    f"  {VOICE_FILE if os.path.exists(VOICE_FILE) else 'No audio file generated'}\n\n"
+    f"SCRIPT PREVIEW:\n{'. '.join(script.split('. ')[:3])}.\n"
+)
+
+save_text(REPORT_FILE, report)
+print("\n" + report + "\n")
+log("DONE", f"All files ready: {SCRIPT_FILE} | {META_FILE} | {VISUAL_FILE} | {VIDEO_PROMPT_FILE} | {REPORT_FILE} | {DEBUG_FILE}")
+
+# ══════════════════════════════════════════════════════════
+# STEP 6 — MOVE TO OUTPUT FOLDER
+# ══════════════════════════════════════════════════════════
+
+output_dir = f"output_{slug}"
+os.makedirs(output_dir, exist_ok=True)
+
+for f in [SCRIPT_FILE, VOICE_FILE, META_FILE, VISUAL_FILE, VIDEO_PROMPT_FILE, REPORT_FILE, DEBUG_FILE]:
+    if os.path.exists(f):
+        shutil.move(f, os.path.join(output_dir, os.path.basename(f)))
+
+log("DONE", f"All files moved to folder: {output_dir}/")
