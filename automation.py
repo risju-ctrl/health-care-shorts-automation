@@ -1,51 +1,57 @@
 #!/usr/bin/env python3
 import os
 import json
-import time
 import requests
 from datetime import datetime
 
 # ── API Keys from GitHub Secrets ──────────────────────────────────────────────
-GOOGLE_API     = os.getenv("GOOGLE_BARD_API")
 CLAUDE_API     = os.getenv("CLAUDE_API")
 ELEVENLABS_API = os.getenv("ELEVENLABS_API")
 FREEPIK_API    = os.getenv("FREEPIK_API")
 
-# ElevenLabs voice ID — "Adam" (male, calm & deep)
 ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
 
 print("🚀 Starting Psychology Shorts automation pipeline...")
 print(f"📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
+claude_headers = {
+    "x-api-key": CLAUDE_API,
+    "anthropic-version": "2023-06-01",
+    "content-type": "application/json"
+}
+
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 1 — Generate Psychology Topic (Google Gemini)
+# STEP 1 — Generate Psychology Topic (Claude)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n1️⃣  Generating psychology topic...")
 
-topic_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GOOGLE_API}"
 topic_payload = {
-    "contents": [{
-        "parts": [{
-            "text": (
-                "Generate a unique psychology fact for a YouTube Shorts video. "
-                "Return ONLY a JSON object with these keys:\n"
-                "{\n"
-                '  "topic": "one-line topic title",\n'
-                '  "hook": "5-word shocking opening line",\n'
-                '  "fact": "the core psychology fact in 2 sentences",\n'
-                '  "why_it_matters": "why this matters to everyday life in 2 sentences",\n'
-                '  "title": "YouTube video title under 60 characters",\n'
-                '  "description": "YouTube description under 200 characters"\n'
-                "}\n"
-                "Do not include markdown or code fences. Return raw JSON only."
-            )
-        }]
+    "model": "claude-sonnet-4-20250514",
+    "max_tokens": 500,
+    "messages": [{
+        "role": "user",
+        "content": (
+            "Generate a unique psychology fact for a YouTube Shorts video. "
+            "Return ONLY a raw JSON object with these exact keys, no markdown, no code fences:\n"
+            "{\n"
+            '  "topic": "one-line topic title",\n'
+            '  "hook": "5-word shocking opening line",\n'
+            '  "fact": "the core psychology fact in 2 sentences",\n'
+            '  "why_it_matters": "why this matters to everyday life in 2 sentences",\n'
+            '  "title": "YouTube video title under 60 characters",\n'
+            '  "description": "YouTube description under 200 characters"\n'
+            "}"
+        )
     }]
 }
 
-topic_res = requests.post(topic_url, json=topic_payload)
+topic_res = requests.post(
+    "https://api.anthropic.com/v1/messages",
+    headers=claude_headers,
+    json=topic_payload
+)
 topic_res.raise_for_status()
-raw_topic = topic_res.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+raw_topic = topic_res.json()["content"][0]["text"].strip()
 
 if raw_topic.startswith("```"):
     raw_topic = raw_topic.split("```")[1]
@@ -60,12 +66,7 @@ print(f"✓ Topic: {topic_data['topic']}")
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n2️⃣  Writing voiceover script with Claude...")
 
-claude_headers = {
-    "x-api-key": CLAUDE_API,
-    "anthropic-version": "2023-06-01",
-    "content-type": "application/json"
-}
-claude_payload = {
+script_payload = {
     "model": "claude-sonnet-4-20250514",
     "max_tokens": 500,
     "messages": [{
@@ -87,13 +88,13 @@ claude_payload = {
     }]
 }
 
-claude_res = requests.post(
+script_res = requests.post(
     "https://api.anthropic.com/v1/messages",
     headers=claude_headers,
-    json=claude_payload
+    json=script_payload
 )
-claude_res.raise_for_status()
-script = claude_res.json()["content"][0]["text"].strip()
+script_res.raise_for_status()
+script = script_res.json()["content"][0]["text"].strip()
 print(f"✓ Script written ({len(script.split())} words)")
 
 # ══════════════════════════════════════════════════════════════════════════════
