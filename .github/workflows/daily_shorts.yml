@@ -2,7 +2,7 @@ name: AI Healthcare Shorts
 
 on:
   schedule:
-    - cron: "0 14 * * *"   # 9 AM ET daily
+    - cron: "0 14 * * *"
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,7 @@ concurrency:
 jobs:
   build-short:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repo
@@ -40,14 +40,15 @@ jobs:
 
       - name: Run healthcare Shorts pipeline
         env:
-          GROQ_API:       ${{ secrets.GROQ_API }}
-          CLAUDE_API:     ${{ secrets.CLAUDE_API }}
+          GROQ_API: ${{ secrets.GROQ_API }}
+          CLAUDE_API: ${{ secrets.CLAUDE_API }}
           ELEVENLABS_API: ${{ secrets.ELEVENLABS_API }}
-          PEXELS_API:     ${{ secrets.PEXELS_API }}
-          USE_TRENDS:     "1"
+          PEXELS_API: ${{ secrets.PEXELS_API }}
+          USE_TRENDS: "1"
         run: python automation.py
 
       - name: Save topic counter
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
