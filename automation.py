@@ -373,7 +373,7 @@ voice_res = requests.post(
     headers={"xi-api-key": ELEVENLABS_API, "Content-Type": "application/json"},
     json={
         "text": script,
-        "model_id": "eleven_monolingual_v1",
+        "model_id": "eleven_turbo_v2_5",
         "voice_settings": {
             "stability": 0.45,
             "similarity_boost": 0.80,
