@@ -22,7 +22,7 @@ PEXELS_API = os.getenv("PEXELS_API")
 USE_TRENDS = os.getenv("USE_TRENDS", "1") == "1"
 
 # ── Alex (ElevenLabs) — trending YouTube Shorts voice ──
-DEFAULT_VOICE_ID = "pqHfZKP75CvOlQylNhV4"  # Alex
+DEFAULT_VOICE_ID = "SCbIlR40EEyW2I6quW1h"  # Alex
 ELEVENLABS_MODEL = "eleven_turbo_v2_5"
 
 TARGET_WORDS = 150
@@ -43,7 +43,7 @@ MIN_AUDIO_FILESIZE = 10_000
 
 VOICE_PROFILES = {
     "warning": {
-        "voice_id": "pqHfZKP75CvOlQylNhV4",  # Alex
+        "voice_id": "SCbIlR40EEyW2I6quW1h",  # Alex
         "label": "Alex - urgent warning tone",
         "tone_instruction": "urgent, gripping, serious — speak like someone warning a friend about something they must not ignore",
         "settings": {
@@ -54,7 +54,7 @@ VOICE_PROFILES = {
         },
     },
     "symptom": {
-        "voice_id": "pqHfZKP75CvOlQylNhV4",  # Alex
+        "voice_id": "SCbIlR40EEyW2I6quW1h",  # Alex
         "label": "Alex - calm medical authority",
         "tone_instruction": "calm and authoritative — speak clearly like a knowledgeable friend explaining a health symptom without alarm",
         "settings": {
@@ -65,7 +65,7 @@ VOICE_PROFILES = {
         },
     },
     "habit": {
-        "voice_id": "pqHfZKP75CvOlQylNhV4",  # Alex
+        "voice_id": "SCbIlR40EEyW2I6quW1h",  # Alex
         "label": "Alex - persuasive habit motivator",
         "tone_instruction": "persuasive and motivating — speak like a coach who genuinely wants the listener to make a positive change today",
         "settings": {
@@ -76,7 +76,7 @@ VOICE_PROFILES = {
         },
     },
     "cost": {
-        "voice_id": "pqHfZKP75CvOlQylNhV4",  # Alex
+        "voice_id": "SCbIlR40EEyW2I6quW1h",  # Alex
         "label": "Alex - persuasive cost explainer",
         "tone_instruction": "trustworthy and persuasive — speak like someone who just figured out the system and wants to save you money",
         "settings": {
@@ -87,7 +87,7 @@ VOICE_PROFILES = {
         },
     },
     "myth": {
-        "voice_id": "pqHfZKP75CvOlQylNhV4",  # Alex
+        "voice_id": "SCbIlR40EEyW2I6quW1h",  # Alex
         "label": "Alex - myth-busting conviction",
         "tone_instruction": "confident and convincing — speak like someone who just learned the real truth and can't believe others don't know it yet",
         "settings": {
@@ -98,7 +98,7 @@ VOICE_PROFILES = {
         },
     },
     "news": {
-        "voice_id": "pqHfZKP75CvOlQylNhV4",  # Alex
+        "voice_id": "SCbIlR40EEyW2I6quW1h",  # Alex
         "label": "Alex - engaging conversational news",
         "tone_instruction": "engaging and conversational — speak like you're sharing genuinely interesting health news with a friend over coffee",
         "settings": {
