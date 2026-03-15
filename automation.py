@@ -16,7 +16,7 @@ CLAUDE_API     = os.getenv("CLAUDE_API")       # optional paid fallback
 ELEVENLABS_API = os.getenv("ELEVENLABS_API")
 PEXELS_API     = os.getenv("PEXELS_API")
 
-VOICE_ID        = "TxGEqnHWrfWFTfGW9XjX"
+VOICE_ID        = "pNInz6obpgDQGcFmaJgB"  # Adam - free on all plans
 TARGET_DURATION = 58
 WORDS_PER_MIN   = 145
 TARGET_WORDS    = int(TARGET_DURATION / 60 * WORDS_PER_MIN)  # ~140
@@ -373,7 +373,7 @@ voice_res = requests.post(
     headers={"xi-api-key": ELEVENLABS_API, "Content-Type": "application/json"},
     json={
         "text": script,
-        "model_id": "eleven_flash_v2_5",
+        "model_id": "eleven_monolingual_v1"  # free-tier compatible,
         "voice_settings": {
             "stability": 0.45,
             "similarity_boost": 0.80,
