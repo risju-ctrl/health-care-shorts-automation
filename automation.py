@@ -22,7 +22,7 @@ print(f"📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n1️⃣  Generating psychology topic...")
 
-topic_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GOOGLE_API}"
+topic_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GOOGLE_API}"
 topic_payload = {
     "contents": [{
         "parts": [{
