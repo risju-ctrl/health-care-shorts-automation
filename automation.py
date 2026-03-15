@@ -21,7 +21,8 @@ PEXELS_API = os.getenv("PEXELS_API")
 
 USE_TRENDS = os.getenv("USE_TRENDS", "1") == "1"
 
-DEFAULT_VOICE_ID = "nPczCjzI2devNBz1zQrb"  # Brian
+# ── Alex (ElevenLabs) — trending YouTube Shorts voice ──
+DEFAULT_VOICE_ID = "pqHfZKP75CvOlQylNhV4"  # Alex
 ELEVENLABS_MODEL = "eleven_turbo_v2_5"
 
 TARGET_WORDS = 150
@@ -29,64 +30,81 @@ TITLE_MIN = 40
 TITLE_MAX = 58
 MIN_AUDIO_FILESIZE = 10_000
 
+# ══════════════════════════════════════════════════════════
+# ALEX VOICE PROFILES
+# Each hook type gets a tailored Alex setting:
+#   warning  → urgent, gripping — high style, lower stability for tension
+#   symptom  → calm authority — moderate style, stable delivery
+#   habit    → persuasive & motivating — expressive, punchy
+#   cost     → trustworthy explainer — measured, slightly persuasive
+#   myth     → curious & convincing — dynamic, confident
+#   news     → engaging conversational — natural energy, varied pace
+# ══════════════════════════════════════════════════════════
+
 VOICE_PROFILES = {
     "warning": {
-        "voice_id": "nPczCjzI2devNBz1zQrb",  # Brian
-        "label": "Brian - calm authority",
+        "voice_id": "pqHfZKP75CvOlQylNhV4",  # Alex
+        "label": "Alex - urgent warning tone",
+        "tone_instruction": "urgent, gripping, serious — speak like someone warning a friend about something they must not ignore",
         "settings": {
-            "stability": 0.62,
+            "stability": 0.45,
             "similarity_boost": 0.82,
-            "style": 0.10,
+            "style": 0.38,
             "use_speaker_boost": True,
         },
     },
     "symptom": {
-        "voice_id": "nPczCjzI2devNBz1zQrb",  # Brian
-        "label": "Brian - clear medical explainer",
+        "voice_id": "pqHfZKP75CvOlQylNhV4",  # Alex
+        "label": "Alex - calm medical authority",
+        "tone_instruction": "calm and authoritative — speak clearly like a knowledgeable friend explaining a health symptom without alarm",
         "settings": {
-            "stability": 0.58,
+            "stability": 0.55,
             "similarity_boost": 0.80,
-            "style": 0.14,
-            "use_speaker_boost": True,
-        },
-    },
-    "habit": {
-        "voice_id": "EXAVITQu4vr4xnSDxMaL",  # Bella
-        "label": "Bella - warm lifestyle explainer",
-        "settings": {
-            "stability": 0.48,
-            "similarity_boost": 0.78,
             "style": 0.22,
             "use_speaker_boost": True,
         },
     },
-    "cost": {
-        "voice_id": "TxGEqnHWrfWFTfGW9XjX",  # Josh
-        "label": "Josh - trustworthy cost explainer",
+    "habit": {
+        "voice_id": "pqHfZKP75CvOlQylNhV4",  # Alex
+        "label": "Alex - persuasive habit motivator",
+        "tone_instruction": "persuasive and motivating — speak like a coach who genuinely wants the listener to make a positive change today",
         "settings": {
-            "stability": 0.65,
-            "similarity_boost": 0.84,
-            "style": 0.08,
+            "stability": 0.42,
+            "similarity_boost": 0.78,
+            "style": 0.45,
+            "use_speaker_boost": True,
+        },
+    },
+    "cost": {
+        "voice_id": "pqHfZKP75CvOlQylNhV4",  # Alex
+        "label": "Alex - persuasive cost explainer",
+        "tone_instruction": "trustworthy and persuasive — speak like someone who just figured out the system and wants to save you money",
+        "settings": {
+            "stability": 0.52,
+            "similarity_boost": 0.82,
+            "style": 0.30,
             "use_speaker_boost": True,
         },
     },
     "myth": {
-        "voice_id": "XB0fDUnXU5powFXDhCwa",  # Charlotte
-        "label": "Charlotte - smart educational tone",
+        "voice_id": "pqHfZKP75CvOlQylNhV4",  # Alex
+        "label": "Alex - myth-busting conviction",
+        "tone_instruction": "confident and convincing — speak like someone who just learned the real truth and can't believe others don't know it yet",
         "settings": {
-            "stability": 0.56,
+            "stability": 0.48,
             "similarity_boost": 0.80,
-            "style": 0.15,
+            "style": 0.40,
             "use_speaker_boost": True,
         },
     },
     "news": {
-        "voice_id": "onwK4e9ZLuTAKqWW03F9",  # Daniel
-        "label": "Daniel - newsroom authority",
+        "voice_id": "pqHfZKP75CvOlQylNhV4",  # Alex
+        "label": "Alex - engaging conversational news",
+        "tone_instruction": "engaging and conversational — speak like you're sharing genuinely interesting health news with a friend over coffee",
         "settings": {
-            "stability": 0.68,
-            "similarity_boost": 0.85,
-            "style": 0.06,
+            "stability": 0.50,
+            "similarity_boost": 0.79,
+            "style": 0.35,
             "use_speaker_boost": True,
         },
     },
@@ -115,7 +133,7 @@ if missing:
         log("ERROR", f"  • {m}")
     sys.exit(1)
 
-log("CONFIG", f"Default voice fallback: {DEFAULT_VOICE_ID} | Model: {ELEVENLABS_MODEL} | Target: {TARGET_WORDS} words")
+log("CONFIG", f"Voice: Alex ({DEFAULT_VOICE_ID}) | Model: {ELEVENLABS_MODEL} | Target: {TARGET_WORDS} words")
 log("CONFIG", f"Use Trends: {USE_TRENDS} | Claude fallback: {'yes' if CLAUDE_API else 'no'} | Pexels: {'yes' if PEXELS_API else 'no'}")
 
 # ══════════════════════════════════════════════════════════
@@ -181,7 +199,7 @@ def count_words(text: str) -> int:
 
 def clean_slug(text: str) -> str:
     s = text.lower()
-    s = re.sub(r"[‘’'`]", "", s)
+    s = re.sub(r"['''`]", "", s)
     s = re.sub(r"[^a-z0-9]+", "_", s)
     return s.strip("_")[:60]
 
@@ -226,8 +244,8 @@ def health_safety_clean(text: str) -> str:
 def tts_clean(text: str) -> str:
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"\.\.+", ".", text)
-    text = re.sub(r"[“”]", '"', text)
-    text = re.sub(r"[‘’]", "'", text)
+    text = re.sub(r"[""]", '"', text)
+    text = re.sub(r"['']", "'", text)
     return text.strip()
 
 def get_audio_duration(path: str):
@@ -289,6 +307,11 @@ def choose_cta(hook_type: str) -> str:
     return random.choice(ctas.get((hook_type or "").lower(), fallback))
 
 def select_voice_profile(hook_type: str, topic_name: str = "", angle: str = "") -> Dict:
+    """
+    Always returns an Alex profile.
+    Falls back to keyword-matching if hook_type is missing or unrecognized,
+    then falls back to a default Alex profile.
+    """
     hook_type = (hook_type or "").strip().lower()
     profile = VOICE_PROFILES.get(hook_type)
     if profile:
@@ -303,13 +326,15 @@ def select_voice_profile(hook_type: str, topic_name: str = "", angle: str = "") 
     if any(x in combined for x in ["sleep", "walking", "food", "nutrition", "hydration", "habit"]):
         return VOICE_PROFILES["habit"]
 
+    # Default Alex fallback — persuasive/engaging general tone
     return {
         "voice_id": DEFAULT_VOICE_ID,
-        "label": "Default fallback - Brian",
+        "label": "Alex - default persuasive tone",
+        "tone_instruction": "persuasive and engaging — speak naturally, like you genuinely want to help the listener",
         "settings": {
-            "stability": 0.55,
+            "stability": 0.50,
             "similarity_boost": 0.80,
-            "style": 0.15,
+            "style": 0.35,
             "use_speaker_boost": True,
         },
     }
@@ -523,8 +548,10 @@ selected_voice = select_voice_profile(_topic_hook_type, _topic_name, _topic_angl
 VOICE_ID = selected_voice["voice_id"]
 VOICE_LABEL = selected_voice["label"]
 VOICE_SETTINGS = selected_voice["settings"]
+TONE_INSTRUCTION = selected_voice.get("tone_instruction", "engaging and persuasive")
 
 log("CONFIG", f"Selected voice: {VOICE_LABEL} | Voice ID: {VOICE_ID}")
+log("CONFIG", f"Tone: {TONE_INSTRUCTION}")
 
 # ══════════════════════════════════════════════════════════
 # STEP 1 — CONTENT PACK
@@ -540,6 +567,12 @@ ANGLE: {_topic_angle}
 SCENE CONTEXT: {_topic_scene}
 HOOK TYPE: {_topic_hook_type}
 SOURCE: {topic_source}
+
+VOICE TONE FOR THIS VIDEO:
+The voiceover will be delivered by Alex — a young male voice trending on YouTube Shorts.
+Tone instruction: {TONE_INSTRUCTION}
+Write the script to match this tone. The writing itself should feel natural when spoken aloud
+by a confident, relatable young man. Sentence rhythm matters — keep sentences short and punchy.
 
 AUDIENCE:
 Americans 18-44 who care about health symptoms, nutrition, prevention,
@@ -594,8 +627,9 @@ RULES FOR SCRIPT:
 - exactly 150 words
 - 55 to 60 second spoken flow
 - plain American English
-- clear, useful, calm, direct
+- clear, useful, and written for Alex's tone: {TONE_INSTRUCTION}
 - 6th to 8th grade reading level
+- short punchy sentences that sound natural out loud
 - no diagnosing
 - no prescribing medication
 - no fearmongering
@@ -691,6 +725,8 @@ Rewrite this healthcare YouTube Shorts script so it is exactly {TARGET_WORDS} wo
 CURRENT SCRIPT:
 {script}
 
+TONE: {TONE_INSTRUCTION}
+
 RULES:
 - exact word count: {TARGET_WORDS}
 - plain American English
@@ -699,6 +735,8 @@ RULES:
 - no diagnosis
 - no fearbait
 - natural spoken pacing
+- short punchy sentences that sound natural out loud
+- written for a confident young male voice (Alex)
 - keep the same topic and CTA style
 
 Return ONLY the rewritten script.
@@ -734,7 +772,9 @@ script_header = (
     f"ANGLE: {_topic_angle}\n"
     f"SOURCE: {topic_source}\n"
     f"HOOK TYPE: {_topic_hook_type}\n"
+    f"VOICE: Alex ({VOICE_ID})\n"
     f"VOICE STYLE: {VOICE_LABEL}\n"
+    f"TONE: {TONE_INSTRUCTION}\n"
     f"THUMBNAIL HOOK: {thumbnail_hook}\n"
     f"WORD COUNT: {word_count}\n"
     + ("─" * 50) + "\n\n"
@@ -758,6 +798,7 @@ TOPIC: {_topic_name}
 ANGLE: {_topic_angle}
 SCENE CONTEXT: {_topic_scene}
 HOOK TYPE: {_topic_hook_type}
+VOICE TONE: {TONE_INSTRUCTION}
 SCRIPT: {script}
 
 Return ONLY valid JSON in this exact format:
@@ -905,6 +946,7 @@ video_prompt_lines = []
 video_prompt_lines.append(f"TITLE: {title}")
 video_prompt_lines.append(f"TOPIC: {_topic_name}")
 video_prompt_lines.append(f"THUMBNAIL HOOK: {thumbnail_hook}")
+video_prompt_lines.append(f"VOICE: Alex | TONE: {TONE_INSTRUCTION}")
 video_prompt_lines.append("")
 video_prompt_lines.append("AI VIDEO PRODUCTION GUIDE")
 video_prompt_lines.append("")
@@ -970,7 +1012,7 @@ if PEXELS_API and scene_plan:
 # STEP 4 — VOICE
 # ══════════════════════════════════════════════════════════
 
-log("VOICE", "Generating audio...")
+log("VOICE", f"Generating audio with Alex ({VOICE_ID})...")
 
 actual_duration = None
 voice_provider = "none"
@@ -999,7 +1041,7 @@ try:
         if os.path.getsize(VOICE_FILE) >= MIN_AUDIO_FILESIZE:
             actual_duration = get_audio_duration(VOICE_FILE)
             voice_provider = "elevenlabs"
-            log("VOICE", f"ElevenLabs success — {VOICE_FILE} saved")
+            log("VOICE", f"ElevenLabs Alex success — {VOICE_FILE} saved")
         else:
             raise RuntimeError("ElevenLabs returned suspiciously small audio file")
     else:
@@ -1038,7 +1080,9 @@ debug_payload = {
     "word_count": word_count,
     "audio_duration": actual_duration,
     "voice_provider": voice_provider,
+    "voice_name": "Alex",
     "voice_label": VOICE_LABEL,
+    "tone_instruction": TONE_INSTRUCTION,
     "voice_settings": VOICE_SETTINGS,
     "voice_id": VOICE_ID,
     "scene_plan": scene_plan,
@@ -1062,8 +1106,10 @@ report = (
     f"HOOK TYPE:    {_topic_hook_type}\n"
     f"WORD COUNT:   {word_count} words  (target: {TARGET_WORDS})\n"
     f"AUDIO:        {duration_str}\n"
+    f"VOICE NAME:   Alex\n"
     f"VOICE ID:     {VOICE_ID}\n"
     f"VOICE STYLE:  {VOICE_LABEL}\n"
+    f"TONE:         {TONE_INSTRUCTION}\n"
     f"VOICE USED:   {voice_provider}\n"
     f"MODEL:        {ELEVENLABS_MODEL if voice_provider == 'elevenlabs' else 'gTTS fallback or none'}\n\n"
     f"THUMBNAIL HOOK:\n  {thumbnail_hook}\n\n"
