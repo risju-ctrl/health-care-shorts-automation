@@ -32,6 +32,7 @@ jobs:
         env:
           GROQ_API: ${{ secrets.GROQ_API }}
           ELEVENLABS_API: ${{ secrets.ELEVENLABS_API }}
+          PEXELS_API: ${{ secrets.PEXELS_API }}
         run: python automation.py
 
       - name: Upload outputs
@@ -43,3 +44,4 @@ jobs:
             voiceover.mp3
             script.txt
             metadata.txt
+            subtitles.srt
