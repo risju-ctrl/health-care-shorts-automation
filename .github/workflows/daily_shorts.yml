@@ -1,46 +1,45 @@
-name: Daily Psychology Shorts
+name: AI Psychology Shorts
 
 on:
   schedule:
-    - cron: '0 8 * * *'
+    - cron: "0 8 * * *"
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
-  create-short:
+  build-short:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install dependencies
         run: |
           pip install requests pillow
 
       - name: Install ffmpeg
-        run: sudo apt-get install -y ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Run automation
+      - name: Run pipeline
         env:
           GROQ_API: ${{ secrets.GROQ_API }}
           ELEVENLABS_API: ${{ secrets.ELEVENLABS_API }}
+          WHISK_API: ${{ secrets.WHISK_API }}
+          GROK_VIDEO_API: ${{ secrets.GROK_VIDEO_API }}
           PEXELS_API: ${{ secrets.PEXELS_API }}
         run: python automation.py
 
-      - name: Upload outputs
+      - name: Upload output
         uses: actions/upload-artifact@v4
         with:
           name: psychology-short
           path: |
             short.mp4
-            voiceover.mp3
             script.txt
             metadata.txt
+            voice.mp3
