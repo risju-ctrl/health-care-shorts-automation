@@ -42,7 +42,6 @@ groq_headers = {
     "Content-Type": "application/json"
 }
 
-# Pick a random CTA for this video
 cta = random.choice(CTAS)
 print(f"✓ CTA selected: {cta}")
 
@@ -57,45 +56,53 @@ try:
         headers=groq_headers,
         json={
             "model": "llama-3.3-70b-versatile",
-            "max_tokens": 600,
+            "max_tokens": 700,
             "messages": [
                 {
                     "role": "system",
                     "content": (
-                        "You are an expert viral YouTube Shorts content strategist "
-                        "specializing in psychology content for US audiences aged 18-35. "
-                        "You know exactly what makes people stop scrolling. "
-                        "Return ONLY raw JSON, no markdown, no code fences."
+                        "You are a viral YouTube Shorts psychologist content strategist "
+                        "with 10 million subscribers. You specialize in psychology content "
+                        "that goes viral with US audiences aged 18-35. "
+                        "You NEVER use scientific jargon. You speak like a friend revealing "
+                        "a shocking secret. Return ONLY raw JSON, no markdown, no code fences."
                     )
                 },
                 {
                     "role": "user",
                     "content": (
-                        "Generate a unique viral psychology fact for a YouTube Shorts video targeting US audience.\n\n"
-                        "NICHE FOCUS (pick one randomly):\n"
-                        "- Dark psychology & manipulation tactics\n"
-                        "- Mind control & persuasion\n"
-                        "- Why people do weird things (behavioral psychology)\n"
-                        "- Shocking brain science facts\n"
-                        "- Social psychology & human behavior\n"
-                        "- Cognitive biases that affect daily life\n"
-                        "- Emotional intelligence & mental health\n"
-                        "- Subconscious mind tricks\n\n"
-                        "RULES FOR VIRAL US CONTENT:\n"
-                        "- Hook must trigger curiosity or shock\n"
-                        "- Fact must be counterintuitive or surprising\n"
-                        "- Must relate to everyday American life\n"
-                        "- Use simple language (8th grade reading level)\n"
-                        "- Title must use power words (shocking, secret, never, always, why)\n\n"
+                        "Generate a unique VIRAL psychology topic for YouTube Shorts targeting US audience aged 18-35.\n\n"
+                        "PICK ONE NICHE RANDOMLY:\n"
+                        "- Dark psychology & manipulation tactics people use on you daily\n"
+                        "- Shocking things your brain does without you knowing\n"
+                        "- Why you do embarrassing/weird things explained by science\n"
+                        "- Mind tricks that work on everyone including you\n"
+                        "- Social psychology secrets most people never discover\n"
+                        "- Hidden biases controlling your decisions right now\n"
+                        "- Emotional manipulation tactics used in relationships\n"
+                        "- Subconscious patterns sabotaging your success\n\n"
+                        "VIRAL CONTENT RULES:\n"
+                        "- Hook must make someone STOP scrolling in 2 seconds\n"
+                        "- Fact must feel PERSONAL — like it's about the viewer specifically\n"
+                        "- Must connect to dating, money, work or social situations\n"
+                        "- Use conversational language like texting a friend\n"
+                        "- Title needs power words: Secret, Dark, Never, Shocking, Why, Hidden\n"
+                        "- Description must make people curious enough to watch\n\n"
+                        "EXAMPLES OF GOOD HOOKS:\n"
+                        "- 'Your brain is lying to you right now'\n"
+                        "- 'Someone is using this on you today'\n"
+                        "- 'You do this every day without knowing'\n"
+                        "- 'This explains why you self-sabotage'\n\n"
                         "Return ONLY this JSON:\n"
                         "{\n"
-                        '  "topic": "specific topic title",\n'
-                        '  "niche": "which niche category this belongs to",\n'
-                        '  "hook": "5-7 word shocking opener that stops scrolling",\n'
-                        '  "fact": "the core psychology fact in 2 punchy sentences",\n'
-                        '  "why_it_matters": "why this affects everyday American life in 2 sentences",\n'
+                        '  "topic": "specific relatable topic title",\n'
+                        '  "niche": "niche category",\n'
+                        '  "hook": "shocking 6-8 word opener that stops scrolling",\n'
+                        '  "fact": "the core psychology fact in 2 punchy personal sentences — no jargon",\n'
+                        '  "why_it_matters": "how this affects dating/money/work/social life in 2 sentences",\n'
+                        '  "real_example": "one specific American relatable scenario (e.g. at work, on a date, with friends)",\n'
                         '  "title": "viral YouTube title under 60 chars with power words",\n'
-                        '  "description": "YouTube description under 200 chars with hashtags"\n'
+                        '  "description": "curiosity-driven YouTube description under 200 chars with hashtags"\n'
                         "}"
                     )
                 }
@@ -116,7 +123,7 @@ except Exception as e:
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 2 — Write Voiceover Script with CTA (Groq)
+# STEP 2 — Write Viral Voiceover Script (Groq)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n2️⃣  Writing voiceover script...")
 
@@ -126,38 +133,59 @@ try:
         headers=groq_headers,
         json={
             "model": "llama-3.3-70b-versatile",
-            "max_tokens": 600,
+            "max_tokens": 700,
             "messages": [
                 {
                     "role": "system",
                     "content": (
-                        "You are a top viral YouTube Shorts scriptwriter. "
-                        "You write for US audiences aged 18-35. "
-                        "Your scripts get millions of views. "
-                        "Return ONLY the script text, nothing else."
+                        "You are the writer behind the most viral psychology YouTube Shorts in the US. "
+                        "Your scripts feel like a friend revealing a shocking secret. "
+                        "You NEVER use scientific words like 'norepinephrine', 'cognitive', "
+                        "'consolidation', or 'phenomenon'. "
+                        "You speak in plain everyday American English. "
+                        "Every sentence makes the viewer want to hear the next one. "
+                        "Return ONLY the script text, nothing else, no labels, no titles."
                     )
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Write a powerful 45-second psychology YouTube Shorts script for US audience.\n\n"
+                        f"Write a VIRAL 45-second psychology YouTube Shorts script for US audience.\n\n"
                         f"Topic: {topic['topic']}\n"
                         f"Niche: {topic['niche']}\n"
                         f"Hook: {topic['hook']}\n"
                         f"Fact: {topic['fact']}\n"
                         f"Why it matters: {topic['why_it_matters']}\n"
-                        f"CTA (use this EXACT CTA at the very end): {cta}\n\n"
-                        "SCRIPT RULES:\n"
-                        "- Start with the hook — first 3 seconds must grab attention\n"
-                        "- Use 'you' and 'your' to speak directly to viewer\n"
-                        "- Short sentences. 5-8 words max per sentence.\n"
-                        "- Build tension and curiosity in the middle\n"
-                        "- Use simple everyday American language\n"
-                        "- Add 1-2 real life examples Americans can relate to\n"
-                        "- End with the EXACT CTA provided above\n"
-                        "- Exactly 120-140 words total including CTA\n"
-                        "- NO intro like 'hey guys' or 'welcome back'\n"
-                        "- Return ONLY the script text"
+                        f"Real example to include: {topic['real_example']}\n"
+                        f"CTA to end with (use EXACTLY): {cta}\n\n"
+                        "SCRIPT STRUCTURE:\n"
+                        "1. Hook (1-2 sentences) — shock them immediately\n"
+                        "2. The reveal (2-3 sentences) — drop the psychology fact simply\n"
+                        "3. Real example (2-3 sentences) — relatable American scenario\n"
+                        "4. Why it matters (2 sentences) — make it personal\n"
+                        "5. CTA (1 sentence) — exact CTA provided above\n\n"
+                        "STRICT RULES:\n"
+                        "- Speak directly to viewer using YOU and YOUR constantly\n"
+                        "- Maximum 8 words per sentence\n"
+                        "- ZERO scientific jargon — talk like texting a friend\n"
+                        "- Every sentence must make them want to hear the next\n"
+                        "- Include the real example naturally in the script\n"
+                        "- End with the EXACT CTA — do not change it\n"
+                        "- Total: 120-140 words including CTA\n"
+                        "- NO intro phrases like 'hey', 'welcome', 'today we'\n"
+                        "- Return ONLY the script, nothing else\n\n"
+                        "EXAMPLE OF GOOD STYLE:\n"
+                        "Your brain is lying to you right now.\n"
+                        "Every decision you make today is already decided.\n"
+                        "You just think you chose it.\n"
+                        "Here's the dark truth.\n"
+                        "Your subconscious makes decisions 7 seconds before you do.\n"
+                        "That text you sent at 2am? Already decided.\n"
+                        "That job you almost took? Already rejected.\n"
+                        "You are not in control. Your past experiences are.\n"
+                        "This explains why you keep repeating the same mistakes.\n"
+                        "So what decision is your brain making for you right now?\n"
+                        "Follow for more psychology facts that will blow your mind."
                     )
                 }
             ]
@@ -167,15 +195,14 @@ try:
     script_res.raise_for_status()
     script = script_res.json()["choices"][0]["message"]["content"].strip()
     print(f"✓ Script: {len(script.split())} words")
-    print(f"✓ CTA included at end")
 except Exception as e:
     print(f"❌ Step 2 failed: {e}")
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 3 — Save Script + Metadata as TXT files
+# STEP 3 — Save Script + Metadata
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n3️⃣  Saving script and metadata files...")
+print("\n3️⃣  Saving files...")
 
 try:
     with open("script.txt", "w") as f:
@@ -194,9 +221,11 @@ try:
         f.write(f"TOPIC:\n{topic['topic']}\n\n")
         f.write(f"NICHE:\n{topic['niche']}\n\n")
         f.write(f"HOOK:\n{topic['hook']}\n\n")
+        f.write(f"REAL EXAMPLE:\n{topic['real_example']}\n\n")
         f.write(f"CTA:\n{cta}\n\n")
         f.write(f"TAGS:\npsychology, dark psychology, mind tricks, brain facts, "
-                f"human behavior, cognitive bias, mental health, shorts\n\n")
+                f"human behavior, cognitive bias, mental health, shorts, "
+                f"psychology facts, mind blowing facts\n\n")
         f.write(f"SCRIPT:\n{script}\n")
     print("✓ metadata.txt saved")
 
@@ -205,7 +234,7 @@ except Exception as e:
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 4 — Generate Voiceover Audio (ElevenLabs)
+# STEP 4 — Generate Voiceover (ElevenLabs)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n4️⃣  Generating voiceover...")
 
@@ -227,7 +256,7 @@ try:
         f.write(el_res.content)
     size = os.path.getsize("voiceover.mp3")
     if size < 1000:
-        print("❌ Audio file too small")
+        print("❌ Audio too small")
         exit(1)
     print(f"✓ Voiceover saved ({size} bytes)")
 except Exception as e:
@@ -235,7 +264,7 @@ except Exception as e:
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 5 — Generate Background Image (Pollinations with PIL fallback)
+# STEP 5 — Generate Background Image (Pollinations + PIL fallback)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n5️⃣  Generating background image...")
 
@@ -247,10 +276,13 @@ for model in models:
     for attempt in range(2):
         try:
             prompt_text = (
-                f"cinematic vertical 9:16 psychology illustration about {topic['topic']}, "
-                "dark moody aesthetic, neon blue and purple glowing tones, "
-                "abstract brain silhouette, neural network patterns, "
-                "dramatic cinematic lighting, ultra HD, no text, no faces, no people"
+                f"epic cinematic vertical 9:16 illustration about {topic['topic']}, "
+                "3D rendered glowing brain deity character with expressive eyes, "
+                "dark cosmic background with stars and galaxies, "
+                "neon purple and gold energy swirling around brain, "
+                "neural network patterns like constellations, "
+                "dramatic god rays, electric sparks, ultra HD 8K, "
+                "photorealistic, no text, no human faces, no people"
             )
             encoded = urllib.parse.quote(prompt_text)
             url = (f"https://image.pollinations.ai/prompt/{encoded}"
@@ -273,7 +305,7 @@ for model in models:
         break
 
 if not image_success:
-    print("   Generating with PIL fallback...")
+    print("   Generating PIL fallback...")
     try:
         from PIL import Image, ImageDraw
         random.seed(int(time.time()))
@@ -284,7 +316,7 @@ if not image_success:
             g = int(4 + (y/1280)*8)
             b = int(25 + (y/1280)*55)
             draw.line([(0,y),(720,y)], fill=(r,g,b))
-        for _ in range(60):
+        for _ in range(80):
             x, y = random.randint(0,720), random.randint(0,1280)
             r2 = random.randint(1,8)
             draw.ellipse([x-r2,y-r2,x+r2,y+r2],
@@ -297,7 +329,7 @@ if not image_success:
         exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 6 — Combine into Video (ffmpeg)
+# STEP 6 — Create Video (ffmpeg)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n6️⃣  Creating video...")
 
@@ -317,8 +349,8 @@ except Exception as e:
 
 print("\n⏭️  YouTube upload skipped for now.")
 print(f"\n✅ ALL DONE! '{topic['title']}' created successfully! 🎉")
-print(f"\n📄 Files created:")
+print(f"\n📄 Files:")
 print(f"   - short.mp4      (video)")
-print(f"   - voiceover.mp3  (audio only)")
-print(f"   - script.txt     (voiceover script + CTA)")
-print(f"   - metadata.txt   (title, description, tags, CTA)")
+print(f"   - voiceover.mp3  (audio)")
+print(f"   - script.txt     (script + CTA)")
+print(f"   - metadata.txt   (title, tags, description)")
