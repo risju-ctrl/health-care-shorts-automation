@@ -21,13 +21,76 @@ PEXELS_API = os.getenv("PEXELS_API")
 
 USE_TRENDS = os.getenv("USE_TRENDS", "1") == "1"
 
-VOICE_ID = "nPczCjzI2devNBz1zQrb"  # Brian
+DEFAULT_VOICE_ID = "nPczCjzI2devNBz1zQrb"  # Brian
 ELEVENLABS_MODEL = "eleven_turbo_v2_5"
 
 TARGET_WORDS = 150
 TITLE_MIN = 40
 TITLE_MAX = 58
 MIN_AUDIO_FILESIZE = 10_000
+
+VOICE_PROFILES = {
+    "warning": {
+        "voice_id": "nPczCjzI2devNBz1zQrb",  # Brian
+        "label": "Brian - calm authority",
+        "settings": {
+            "stability": 0.62,
+            "similarity_boost": 0.82,
+            "style": 0.10,
+            "use_speaker_boost": True,
+        },
+    },
+    "symptom": {
+        "voice_id": "nPczCjzI2devNBz1zQrb",  # Brian
+        "label": "Brian - clear medical explainer",
+        "settings": {
+            "stability": 0.58,
+            "similarity_boost": 0.80,
+            "style": 0.14,
+            "use_speaker_boost": True,
+        },
+    },
+    "habit": {
+        "voice_id": "EXAVITQu4vr4xnSDxMaL",  # Bella
+        "label": "Bella - warm lifestyle explainer",
+        "settings": {
+            "stability": 0.48,
+            "similarity_boost": 0.78,
+            "style": 0.22,
+            "use_speaker_boost": True,
+        },
+    },
+    "cost": {
+        "voice_id": "TxGEqnHWrfWFTfGW9XjX",  # Josh
+        "label": "Josh - trustworthy cost explainer",
+        "settings": {
+            "stability": 0.65,
+            "similarity_boost": 0.84,
+            "style": 0.08,
+            "use_speaker_boost": True,
+        },
+    },
+    "myth": {
+        "voice_id": "XB0fDUnXU5powFXDhCwa",  # Charlotte
+        "label": "Charlotte - smart educational tone",
+        "settings": {
+            "stability": 0.56,
+            "similarity_boost": 0.80,
+            "style": 0.15,
+            "use_speaker_boost": True,
+        },
+    },
+    "news": {
+        "voice_id": "onwK4e9ZLuTAKqWW03F9",  # Daniel
+        "label": "Daniel - newsroom authority",
+        "settings": {
+            "stability": 0.68,
+            "similarity_boost": 0.85,
+            "style": 0.06,
+            "use_speaker_boost": True,
+        },
+    },
+}
 
 # ══════════════════════════════════════════════════════════
 # LOGGING
@@ -52,7 +115,7 @@ if missing:
         log("ERROR", f"  • {m}")
     sys.exit(1)
 
-log("CONFIG", f"Voice: {VOICE_ID} | Model: {ELEVENLABS_MODEL} | Target: {TARGET_WORDS} words")
+log("CONFIG", f"Default voice fallback: {DEFAULT_VOICE_ID} | Model: {ELEVENLABS_MODEL} | Target: {TARGET_WORDS} words")
 log("CONFIG", f"Use Trends: {USE_TRENDS} | Claude fallback: {'yes' if CLAUDE_API else 'no'} | Pexels: {'yes' if PEXELS_API else 'no'}")
 
 # ══════════════════════════════════════════════════════════
@@ -160,6 +223,13 @@ def health_safety_clean(text: str) -> str:
         text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
     return text.strip()
 
+def tts_clean(text: str) -> str:
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\.\.+", ".", text)
+    text = re.sub(r"[“”]", '"', text)
+    text = re.sub(r"[‘’]", "'", text)
+    return text.strip()
+
 def get_audio_duration(path: str):
     probe = subprocess.run(
         [
@@ -175,6 +245,74 @@ def get_audio_duration(path: str):
         return float(probe.stdout.strip())
     except Exception:
         return None
+
+def choose_cta(hook_type: str) -> str:
+    ctas = {
+        "warning": [
+            "Save this in case you need it later.",
+            "Share this with someone who should know these signs.",
+            "Follow for simple health warnings in plain English.",
+        ],
+        "symptom": [
+            "Save this so you can come back to it later.",
+            "Share this with someone who keeps ignoring these signs.",
+            "Follow for more simple health explainers.",
+        ],
+        "habit": [
+            "Follow for more health habits explained simply.",
+            "Save this if you want practical health tips.",
+            "Share this with someone working on their health.",
+        ],
+        "cost": [
+            "Follow for more simple healthcare cost explainers.",
+            "Save this before your next medical bill shows up.",
+            "Share this with someone dealing with insurance confusion.",
+        ],
+        "myth": [
+            "Follow for more health facts without the jargon.",
+            "Save this if you want clearer health information.",
+            "Share this with someone who hears this myth a lot.",
+        ],
+        "news": [
+            "Follow for more health news in plain English.",
+            "Save this to keep the key point in mind.",
+            "Share this with someone trying to keep up with health news.",
+        ],
+    }
+    fallback = [
+        "Follow for simple health explainers like this.",
+        "Save this so you remember it later.",
+        "Follow for more health news in plain English.",
+        "Share this with someone who needs it.",
+        "Follow if you want health facts without the jargon.",
+    ]
+    return random.choice(ctas.get((hook_type or "").lower(), fallback))
+
+def select_voice_profile(hook_type: str, topic_name: str = "", angle: str = "") -> Dict:
+    hook_type = (hook_type or "").strip().lower()
+    profile = VOICE_PROFILES.get(hook_type)
+    if profile:
+        return profile
+
+    combined = f"{topic_name} {angle}".lower()
+
+    if any(x in combined for x in ["stroke", "heart attack", "emergency", "warning", "danger"]):
+        return VOICE_PROFILES["warning"]
+    if any(x in combined for x in ["insurance", "deductible", "bill", "debt", "cost"]):
+        return VOICE_PROFILES["cost"]
+    if any(x in combined for x in ["sleep", "walking", "food", "nutrition", "hydration", "habit"]):
+        return VOICE_PROFILES["habit"]
+
+    return {
+        "voice_id": DEFAULT_VOICE_ID,
+        "label": "Default fallback - Brian",
+        "settings": {
+            "stability": 0.55,
+            "similarity_boost": 0.80,
+            "style": 0.15,
+            "use_speaker_boost": True,
+        },
+    }
 
 # ══════════════════════════════════════════════════════════
 # TOPICS
@@ -381,6 +519,13 @@ _topic_scene = selected_topic["scene_context"]
 _topic_hook_type = selected_topic["hook_type"]
 topic_source = selected_topic["source"]
 
+selected_voice = select_voice_profile(_topic_hook_type, _topic_name, _topic_angle)
+VOICE_ID = selected_voice["voice_id"]
+VOICE_LABEL = selected_voice["label"]
+VOICE_SETTINGS = selected_voice["settings"]
+
+log("CONFIG", f"Selected voice: {VOICE_LABEL} | Voice ID: {VOICE_ID}")
+
 # ══════════════════════════════════════════════════════════
 # STEP 1 — CONTENT PACK
 # ══════════════════════════════════════════════════════════
@@ -455,6 +600,7 @@ RULES FOR SCRIPT:
 - no prescribing medication
 - no fearmongering
 - no overpromising
+- write for natural spoken pacing at about 145-160 words per minute
 - do not use these openers:
   "Have you ever"
   "Did you know"
@@ -526,17 +672,10 @@ if not isinstance(alt_titles, list):
     alt_titles = []
 alt_titles = [str(x).strip().strip('"\'').strip(".") for x in alt_titles[:2] if str(x).strip()]
 
-CTA_VARIANTS = [
-    "Follow for simple health explainers like this.",
-    "Save this so you remember it later.",
-    "Follow for more health news in plain English.",
-    "Share this with someone who needs it.",
-    "Follow if you want health facts without the jargon.",
-]
 CTA_KEYWORDS = ["follow", "save", "share", "comment"]
 
 if not cta or not any(k in cta.lower() for k in CTA_KEYWORDS):
-    cta = random.choice(CTA_VARIANTS)
+    cta = choose_cta(_topic_hook_type)
 
 if not any(k in script.lower() for k in CTA_KEYWORDS):
     script = script.rstrip() + " " + cta
@@ -571,6 +710,7 @@ Return ONLY the rewritten script.
 if not any(k in script.lower() for k in CTA_KEYWORDS):
     script = script.rstrip() + " " + cta
 
+script = tts_clean(script)
 word_count = count_words(script)
 log("SCRIPT", f"Final word count: {word_count}")
 
@@ -594,6 +734,7 @@ script_header = (
     f"ANGLE: {_topic_angle}\n"
     f"SOURCE: {topic_source}\n"
     f"HOOK TYPE: {_topic_hook_type}\n"
+    f"VOICE STYLE: {VOICE_LABEL}\n"
     f"THUMBNAIL HOOK: {thumbnail_hook}\n"
     f"WORD COUNT: {word_count}\n"
     + ("─" * 50) + "\n\n"
@@ -837,12 +978,7 @@ voice_provider = "none"
 voice_payload = {
     "text": script,
     "model_id": ELEVENLABS_MODEL,
-    "voice_settings": {
-        "stability": 0.45,
-        "similarity_boost": 0.78,
-        "style": 0.22,
-        "use_speaker_boost": True,
-    },
+    "voice_settings": VOICE_SETTINGS,
 }
 
 try:
@@ -902,6 +1038,9 @@ debug_payload = {
     "word_count": word_count,
     "audio_duration": actual_duration,
     "voice_provider": voice_provider,
+    "voice_label": VOICE_LABEL,
+    "voice_settings": VOICE_SETTINGS,
+    "voice_id": VOICE_ID,
     "scene_plan": scene_plan,
     "pexels_results": pexels_results,
 }
@@ -924,6 +1063,7 @@ report = (
     f"WORD COUNT:   {word_count} words  (target: {TARGET_WORDS})\n"
     f"AUDIO:        {duration_str}\n"
     f"VOICE ID:     {VOICE_ID}\n"
+    f"VOICE STYLE:  {VOICE_LABEL}\n"
     f"VOICE USED:   {voice_provider}\n"
     f"MODEL:        {ELEVENLABS_MODEL if voice_provider == 'elevenlabs' else 'gTTS fallback or none'}\n\n"
     f"THUMBNAIL HOOK:\n  {thumbnail_hook}\n\n"
