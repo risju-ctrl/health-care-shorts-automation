@@ -1,18 +1,27 @@
-name: AI Psychology Shorts
+name: AI Healthcare Shorts
 
 on:
   schedule:
     - cron: "0 14 * * *"   # 9 AM ET daily
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: ai-healthcare-shorts
+  cancel-in-progress: false
+
 jobs:
   build-short:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -20,29 +29,45 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install requests
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
 
-      - name: Install ffprobe (for audio duration check)
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install ffmpeg / ffprobe
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
-      - name: Run pipeline
+      - name: Run healthcare Shorts pipeline
         env:
           GROQ_API:       ${{ secrets.GROQ_API }}
           CLAUDE_API:     ${{ secrets.CLAUDE_API }}
           ELEVENLABS_API: ${{ secrets.ELEVENLABS_API }}
+          PEXELS_API:     ${{ secrets.PEXELS_API }}
+          USE_TRENDS:     "1"
         run: python automation.py
 
       - name: Save topic counter
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add topic_counter.txt
-          git diff --staged --quiet || git commit -m "chore: advance topic counter [skip ci]"
-          git push
 
-      - name: Upload output
+          if [ -f topic_counter.txt ]; then
+            git add topic_counter.txt
+            git diff --staged --quiet || git commit -m "chore: advance topic counter [skip ci]"
+            git push
+          else
+            echo "topic_counter.txt not found, skipping commit"
+          fi
+
+      - name: Upload output artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: psychology-short-${{ github.run_number }}
+          name: healthcare-short-${{ github.run_number }}
           retention-days: 14
-          path: output_*/
+          path: |
+            output_*/
+            *.txt
+            *.json
+            *.mp3
