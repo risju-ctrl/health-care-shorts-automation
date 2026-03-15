@@ -24,7 +24,9 @@ VOICE_ID = "pNInz6obpgDQGcFmaJgB"
 ELEVENLABS_MODEL = "eleven_turbo_v2_5"
 
 # Target: 58 seconds at 145 wpm = 140 words
-TARGET_WORDS = 140
+# ElevenLabs eleven_turbo_v2_5 speaks at ~130 wpm with natural pauses
+# 155 words x 130wpm = ~58 seconds (tested)
+TARGET_WORDS = 155
 
 # ══════════════════════════════════════════════════════════
 # LOGGING
@@ -113,42 +115,158 @@ def llm(prompt: str, max_tokens: int = 1000, step: str = "") -> str:
 
 log("TITLE", "Generating...")
 
-TITLE_PROMPT = """
-You write titles for a US psychology YouTube Shorts channel that gets millions of views.
-Your job is to write ONE title that stops an American 18-35 year old mid-scroll.
+# Rotate topics using today's date so each daily run hits a different theme
+import datetime, hashlib
+# US niche psychology Shorts topics — each is a specific relatable behavior,
+# not a clinical term. Proven to perform with American 18-35 audience.
+# Format: (topic_name, emotional_angle, scene_context)
+_TOPICS = [
+    # ── RELATIONSHIPS & TEXTING (huge US engagement) ──────────────────────────
+    ("leaving people on read",
+     "why you go silent on people you actually like",
+     "texting, read receipts, the urge to disappear mid-conversation"),
 
-WHAT WORKS ON SHORTS:
-Titles that trigger an instant emotional reaction — not curiosity alone, but a gut punch.
-The best titles make the viewer think "wait... is that me?" before they even tap.
+    ("soft ghosting",
+     "why you slowly fade instead of just being honest",
+     "leaving someone on delivered, posting stories but not replying"),
 
-PSYCHOLOGICAL TRIGGERS TO USE (pick the strongest one):
-- Identity threat: challenges how they see themselves
-- Social exposure: reveals something embarrassing or hidden
-- Self-sabotage: shows them they're hurting themselves without knowing
-- Blind spot: exposes a pattern they've never noticed
-- Reframe: flips something they thought was a flaw into something else
+    ("breadcrumbing",
+     "why you keep someone just close enough to not lose them",
+     "liking old photos, texting just enough, keeping options open"),
 
-FORMAT RULES:
-- Under 52 characters
-- No ALL CAPS
-- No exclamation marks
-- No "this will change your life"
-- No vague words like "mindset" or "growth" alone
-- Must work as a spoken sentence — say it out loud, it should land
+    ("the talking stage anxiety",
+     "why you start pulling back right when things are going well",
+     "overthinking every text, screenshot to friends, waiting to reply"),
 
-BEST PERFORMING FORMATS:
-→ "You're not [X] — you're just [unexpected reframe]"
-→ "Why you [behavior] and can't stop"
+    ("checking their location",
+     "why you track people instead of just asking what you need",
+     "Find My Friends, always knowing where they are, the relief and shame of it"),
+
+    ("situationship patterns",
+     "why you stay in something with no label and pretend you're fine",
+     "the undefined relationship, introducing them as 'a friend', avoiding the talk"),
+
+    # ── SOCIAL MEDIA PSYCHOLOGY (massive US niche) ────────────────────────────
+    ("posting then deleting",
+     "why you share something then immediately regret it",
+     "screenshot your own post, delete before anyone sees, refresh the likes"),
+
+    ("doomscrolling at night",
+     "why you can't put your phone down even when it makes you feel worse",
+     "1am Instagram, the numb scroll, waking up tired from doing nothing"),
+
+    ("comparing your life to strangers online",
+     "why someone's highlight reel makes you feel behind in your own story",
+     "vacation photos, relationship posts, someone your age doing more"),
+
+    ("performing happiness online",
+     "why you post the good days even when you're falling apart inside",
+     "curating the feed, not posting when things are bad, the gap between real and posted"),
+
+    ("the parasocial trap",
+     "why you feel genuine emotions about people who don't know you exist",
+     "getting upset at a creator's drama, feeling betrayed by a stranger, podcast parasocials"),
+
+    ("reply anxiety",
+     "why seeing a message notification fills you with dread instead of excitement",
+     "the read and don't reply loop, overthinking responses, dreading group chats"),
+
+    # ── WORK & MONEY PSYCHOLOGY (US 20s-30s core anxiety) ────────────────────
+    ("Sunday scaries",
+     "why Sunday evening feels like the worst part of your week",
+     "the dread that starts at 4pm Sunday, the mental prep for Monday, losing the weekend"),
+
+    ("quiet quitting your life",
+     "why you do the bare minimum in things that used to excite you",
+     "going through motions at work, gym, friendships — present but checked out"),
+
+    ("lifestyle creep guilt",
+     "why earning more money never actually makes you feel secure",
+     "the raise that didn't fix anything, spending more but feeling the same"),
+
+    ("the comparison career spiral",
+     "why LinkedIn makes you feel like a failure even when you're doing fine",
+     "someone your age got promoted, started a company, has it together"),
+
+    ("chronic busyness as avoidance",
+     "why you keep yourself so busy you never have to feel anything",
+     "the packed schedule, no downtime by design, exhausted but can't stop"),
+
+    # ── FAMILY & UPBRINGING (deepest US psychology content) ──────────────────
+    ("the responsible child wound",
+     "why you became the one who holds everything together and resent it",
+     "the family peacekeeper, absorbing everyone's stress, never being the mess"),
+
+    ("growing up too fast",
+     "why you can't remember being a carefree kid and what that cost you",
+     "handling adult problems young, being 'mature for your age', missing something"),
+
+    ("the parent you became to yourself",
+     "why the voice in your head sounds exactly like someone who raised you",
+     "self-criticism that echoes a parent, standards that were never yours"),
+
+    ("emotionally immature parents",
+     "why you learned to manage their emotions before your own",
+     "tip-toeing around a parent's moods, making yourself small, walking on eggshells"),
+
+    # ── SELF BEHAVIOR (viral US psychology hooks) ─────────────────────────────
+    ("finishing nothing you start",
+     "why you buy the course, start the project, then abandon it every time",
+     "the half-read books, unused gym membership, 47 browser tabs"),
+
+    ("apologizing for existing",
+     "why 'sorry' comes out of your mouth before you've even done anything",
+     "sorry for taking up space, sorry for asking, sorry for having needs"),
+
+    ("people watching strangers and feeling something",
+     "why you get emotionally invested in strangers' lives without realizing it",
+     "the couple at the restaurant, the person crying on the subway, the barista"),
+
+    ("the 2am spiral",
+     "why your worst thoughts always hit when you're alone and it's quiet",
+     "lying in the dark, the thoughts that only come at night, the mental loop"),
+
+    ("not being able to accept compliments",
+     "why someone saying something nice about you makes you uncomfortable",
+     "deflecting praise, the weird silence after a compliment, minimizing yourself"),
+
+    ("the reset fantasy",
+     "why you imagine disappearing and starting completely over somewhere new",
+     "moving to a new city, new identity, leaving everything behind daydream"),
+
+    ("living in your head",
+     "why the most intense version of your life happens in your own imagination",
+     "the rehearsed conversations, the imagined scenarios, the life you simulate"),
+]
+_day_index = int(hashlib.md5(datetime.date.today().isoformat().encode()).hexdigest(), 16) % len(_TOPICS)
+_topic_name, _topic_angle, _topic_scene = _TOPICS[_day_index]
+
+TITLE_PROMPT = f"""
+You write titles for a viral US psychology YouTube Shorts channel targeting Americans 18-35.
+Your only job right now: write ONE title for today's topic that stops someone mid-scroll.
+
+TODAY'S TOPIC: {_topic_name}
+EMOTIONAL ANGLE: {_topic_angle}
+SCENE CONTEXT: {_topic_scene}
+
+The title must make the viewer feel: "wait... that's exactly me."
+It must create an emotional gut punch — not just curiosity.
+
+HARD FORMAT RULES:
+- 40-52 characters maximum (count spaces)
+- No ALL CAPS, no exclamation marks
+- No "this will change your life" or "you need to hear this"
+- No vague buzzwords: mindset, growth, healing, toxic, trauma (alone)
+- Must sound like something a real person would say out loud
+
+PROVEN TITLE FORMATS — pick the one that fits the angle best:
+→ "You're not [X] — you're just [reframe]"
+→ "Why you [specific behavior] and can't stop"
 → "The real reason you [relatable struggle]"
-→ "What [habit/reaction] says about how you were raised"
-→ "You're [doing X] and you don't even see it"
-→ "Stop calling yourself [label] — here's what's really going on"
-
-TOPIC POOL — rotate through these themes, pick whichever feels freshest:
-attachment style, people pleasing, self-sabotage, avoidant behavior,
-overthinking, fear of success, childhood wounds, emotional unavailability,
-social anxiety, imposter syndrome, validation seeking, inner critic,
-fear of abandonment, perfectionism, emotional numbness
+→ "What your [habit] is really telling you"
+→ "You [do this thing] and you don't even know why"
+→ "Stop calling yourself [label] — here's the truth"
+→ "Why [behavior] feels impossible for you"
 
 Return ONLY the title. No quotes. No period. No explanation.
 """
@@ -178,100 +296,112 @@ log("TITLE", f"Slug: {slug}")
 log("SCRIPT", "Writing...")
 
 SCRIPT_PROMPT = f"""
-You are the head writer for a top US psychology YouTube Shorts channel.
-Your scripts consistently hit 85%+ retention because they make people feel deeply understood.
-
-ASSIGNMENT: Write the voiceover script for this Short.
+You are writing a 58-second voiceover script for a US psychology YouTube Shorts channel.
 
 TITLE: {title}
-EXACT WORD COUNT REQUIRED: {TARGET_WORDS} words — count every word, hit this number precisely.
-At 145 words per minute this = exactly 58 seconds of audio.
+TOPIC: {_topic_name}
+EMOTIONAL ANGLE: {_topic_angle}
+SCENE CONTEXT (use these real-life details in your SCENE section): {_topic_scene}
 
-═══════════════════════════════════
-AUDIENCE PROFILE
-═══════════════════════════════════
-American, 18-35, mostly grew up online.
-They follow: therapy TikTok, self-improvement accounts, true crime, pop psychology.
-They're skeptical of motivational fluff but hungry for real insight.
-They STOP scrolling when something feels uncomfortably true about themselves.
-They SHARE when something articulates something they felt but couldn't name.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CRITICAL: WORD COUNT = {TARGET_WORDS} WORDS EXACTLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This script will be read aloud at 145 words per minute = 58 seconds.
+You MUST hit {TARGET_WORDS} words. Not 110. Not 130. Not 160. Exactly {TARGET_WORDS}.
+ElevenLabs reads at 130 wpm. {TARGET_WORDS} words = 58 seconds. This is non-negotiable.
+Each section below has a required sentence count. Follow it precisely.
+After writing, count every word. If you're short, expand. If long, cut.
 
-═══════════════════════════════════
-VOICE & TONE
-═══════════════════════════════════
-- Second person (you/your) the ENTIRE script — never "people" or "they"
-- Sound like a calm, sharp friend talking to you at 11pm — not a lecture
-- Plain American English. 6th grade reading level max.
-- Short punchy sentences. 6-10 words each. Vary the rhythm.
-- NO science terms. Instead of "attachment anxiety" say "that fear of being left"
-- NO therapy-speak. Instead of "set boundaries" say "you stop picking up the phone"
-- Be specific. Specific = believable. Generic = boring.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AUDIENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Americans 18-35. They grew up online. They follow therapy TikTok and pop psychology.
+They stop scrolling when something is uncomfortably true about them.
+They share when you name something they felt but never could.
+They leave when it sounds like a lecture or a self-help book.
 
-═══════════════════════════════════
-MANDATORY STRUCTURE
-═══════════════════════════════════
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VOICE RULES — non-negotiable
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- "you/your" the entire script. Never "people", "some people", "they"
+- Every sentence: 6-10 words. Short. Direct. Punchy.
+- 6th grade reading level. Plain American English.
+- Replace every clinical term with plain language:
+    "attachment anxiety" → "that fear of being left"
+    "cognitive dissonance" → "that weird feeling when two things don't add up"
+    "hypervigilance" → "always waiting for something to go wrong"
+    "emotional regulation" → "keeping it together when everything feels like too much"
+- No exclamation marks. Ever.
+- Be specific. Name the app, the moment, the feeling. Specific = real. Vague = skipped.
 
-[HOOK — first 2 sentences, ~20 words]
-Drop the viewer straight into a moment they've lived.
-The first sentence must create immediate discomfort or recognition.
-Do NOT start with: "Have you ever", "Did you know", "So", "Today".
-Start mid-scene — like you already know something about them.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — HOOK (exactly 3 sentences, ~30 words)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Sentence 1: Drop them into a moment they've already lived. No setup, no intro.
+            FORBIDDEN openers: "Have you ever", "Did you know", "So,", "Today,"
+            START with: "You", "That feeling", "When you", "Every time", "There's a reason"
+Sentence 2: Twist — add a specific detail that makes it worse or more real.
+Sentence 3: The pivot — hint that there's a reason they haven't seen yet.
+TARGET: ~30 words for this section.
 
-[INSIGHT — 3-4 sentences, ~40 words]
-Explain the psychology behind it WITHOUT using clinical language.
-Use one concrete metaphor from American everyday life.
-Good metaphor sources: your phone, your car, your job, your group chat, dating apps, Netflix.
-Each sentence = one idea. Never stack two insights in one sentence.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — THE TRUTH (exactly 4 sentences, ~40 words)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Explain the psychology WITHOUT clinical language.
+Use ONE metaphor from American daily life from the SCENE CONTEXT above.
+Each sentence = one idea only. Never combine two.
+Make them feel like they're learning something real, not being diagnosed.
+TARGET: ~40 words for this section.
 
-[STORY — 3-4 sentences, ~45 words]
-Tell one ultra-specific mini-scenario that makes it feel real.
-Give it a texture detail — a specific app, a specific moment, a specific feeling.
-The reader should feel like you're describing THEIR life.
-No character names. Keep it "you" the whole time.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — THE SCENE (exactly 5 sentences, ~50 words)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Paint one ultra-specific scenario using details from SCENE CONTEXT.
+Reference real things: app names, specific moments, the exact feeling in the chest.
+Keep it "you" — no character names, no "imagine".
+Make it feel like you're describing exactly their Tuesday night.
+The viewer should feel: "how does this person know my life."
+TARGET: ~50 words for this section.
 
-[REFRAME — 2 sentences, ~20 words]
-Flip the narrative — this isn't a flaw, here's what it actually means.
-Make the viewer feel understood, not fixed.
-Do NOT end with a motivational quote or advice.
-The last line should land like a quiet revelation.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — THE REFRAME (exactly 3 sentences, ~25 words)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Flip it. This behavior isn't a flaw — here's what it actually is.
+Make them feel understood, not fixed, not advised.
+Final sentence = a quiet revelation that lands like: "oh. so that's what this is."
+TARGET: ~25 words for this section.
 
-[CTA — 1 sentence, ~15 words]
-End with a direct, natural call to action.
-It must feel conversational — not like an ad.
-Examples of GOOD CTAs:
-  "Follow for more and save this — you'll want to come back to it."
-  "If this one hit, follow — there's more where that came from."
-  "Drop a comment if this is you, and follow for more."
-  "Follow if you needed to hear this today."
-BANNED CTA phrases: "smash the like button", "don't forget to subscribe", "hit that bell"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — CTA (exactly 1 sentence, ~15 words)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Natural, conversational call to follow. Sounds like a friend, not an ad.
+GOOD: "Follow if this one hit — there's a lot more where that came from."
+GOOD: "Save this and follow for more — you'll want to come back."
+GOOD: "Drop a comment if this is you, and follow for more like this."
+BANNED: "smash", "subscribe", "hit that bell", "don't forget"
+TARGET: ~15 words for this section.
 
-═══════════════════════════════════
-ABSOLUTE BANS
-═══════════════════════════════════
-✗ "Have you ever…" as opener
-✗ "It's okay to…"
-✗ "Science shows…" / "Studies say…" / "Research proves…"
-✗ "At the end of the day"
-✗ "Here's the thing" / "The thing is"
-✗ "In today's world" / "In today's society"
-✗ "Journey" / "healing journey" / "your truth"
-✗ Exclamation marks — anywhere
-✗ More than one use of "actually"
-✗ Rhetorical questions mid-script (hook only, if at all)
+TOTAL TARGET: 30 + 40 + 50 + 25 + 15 = {TARGET_WORDS} words
 
-═══════════════════════════════════
-WORD COUNT RULE
-═══════════════════════════════════
-You MUST write exactly {TARGET_WORDS} words (±3 words maximum).
-Count every word before you return the script.
-If your count is off, rewrite until it's right.
-Short scripts ruin the timing. Do not go under {TARGET_WORDS - 3}.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BANNED PHRASES — using any of these = automatic failure
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"Have you ever" / "Did you know" / "It's okay to" / "Science shows"
+"Studies say" / "Research proves" / "At the end of the day"
+"Here's the thing" / "The thing is" / "In today's world"
+"journey" / "healing" / "your truth" / "toxic" (alone) / "empower"
 
-Return ONLY the plain script text.
-No section labels. No parentheticals. No markdown. Just the words to be spoken.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL CHECK BEFORE RETURNING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Count your words. Required: {TARGET_WORDS} (±2).
+If under: expand the SCENE section first, then TRUTH.
+If over: cut adjectives and adverbs first, then shorten sentences.
+
+Return ONLY the spoken script. No labels. No markdown. No section headers. Plain text only.
 """
 
-script = llm(SCRIPT_PROMPT, max_tokens=700, step="SCRIPT")
+script = llm(SCRIPT_PROMPT, max_tokens=1000, step="SCRIPT")
 
 # Strip any labels the model might accidentally add
 script = re.sub(r"\[(HOOK|INSIGHT|STORY|REFRAME|CTA)[^\]]*\]\s*", "", script, flags=re.IGNORECASE).strip()
@@ -279,11 +409,44 @@ script = re.sub(r"\[(HOOK|INSIGHT|STORY|REFRAME|CTA)[^\]]*\]\s*", "", script, fl
 word_count = len(script.split())
 log("SCRIPT", f"{word_count} words (target: {TARGET_WORDS})")
 
-# Warn if significantly off target
+# If Groq returned a short script, ask it to expand — retry up to 2 times
+_retry = 0
+while word_count < TARGET_WORDS - 5 and _retry < 2:
+    _retry += 1
+    log("SCRIPT", f"Too short ({word_count} words) — retry {_retry}/2 to reach {TARGET_WORDS}...")
+    _expand_prompt = f"""
+Rewrite this psychology voiceover script so it is exactly {TARGET_WORDS} words.
+Current word count: {word_count}. You need {TARGET_WORDS - word_count} more words.
+
+HOW TO EXPAND (in order of priority):
+1. THE SCENE section: add 1-2 more ultra-specific sentences with real details
+   (app names, exact moments, specific physical feelings)
+2. THE TRUTH section: add 1 more sentence explaining the psychology plainly
+3. THE HOOK: make sentence 2 more specific and vivid
+
+RULES:
+- Keep "you/your" throughout — never "people" or "they"
+- Every sentence: 6-10 words
+- No labels, no headers, no markdown
+- Same voice and tone as the original
+- Count every word before returning. Must be {TARGET_WORDS} (±2).
+
+Return ONLY the full rewritten script as plain text.
+
+Current script:
+{script}
+"""
+    script = llm(_expand_prompt, max_tokens=1000, step="SCRIPT")
+    script = re.sub(r"\[(HOOK|INSIGHT|STORY|REFRAME|CTA)[^\]]*\]\s*", "", script, flags=re.IGNORECASE).strip()
+    word_count = len(script.split())
+    log("SCRIPT", f"After retry {_retry}: {word_count} words")
+
 if word_count < TARGET_WORDS - 10:
-    log("SCRIPT", f"WARNING: Script is {TARGET_WORDS - word_count} words short — audio may be under 58s")
+    log("SCRIPT", f"WARNING: Final script is {word_count} words — audio will be under 58s")
 elif word_count > TARGET_WORDS + 10:
-    log("SCRIPT", f"WARNING: Script is {word_count - TARGET_WORDS} words long — audio may exceed 58s")
+    log("SCRIPT", f"WARNING: Final script is {word_count} words — audio may exceed 58s")
+else:
+    log("SCRIPT", f"Word count OK: {word_count} words")
 
 with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
     f.write(f"TITLE: {title}\n")
@@ -359,6 +522,9 @@ Write complete YouTube Shorts upload metadata for a US psychology channel.
 Target audience: Americans 18-35. Goal: maximum clicks, saves, and follows.
 
 TITLE: {title}
+TOPIC: {_topic_name}
+EMOTIONAL ANGLE: {_topic_angle}
+SCENE CONTEXT (use these real-life details in your SCENE section): {_topic_scene}
 SCRIPT OPENING: {" ".join(script.split()[:25])}...
 
 OUTPUT THIS EXACT FORMAT — no extra text, no labels other than the ones below:
