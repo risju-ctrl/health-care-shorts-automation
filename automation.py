@@ -260,8 +260,30 @@ _TOPICS = [
      "why the most intense version of your life happens in your own imagination",
      "the rehearsed conversations, the imagined scenarios, the life you simulate"),
 ]
-_day_index = int(hashlib.md5(datetime.date.today().isoformat().encode()).hexdigest(), 16) % len(_TOPICS)
-_topic_name, _topic_angle, _topic_scene = _TOPICS[_day_index]
+# ── TOPIC SELECTION — never repeats across runs ───────────────────────────────
+# Uses a persistent counter file (topic_counter.txt) stored in the repo.
+# Each run increments the counter → different topic every single run.
+# Counter wraps around after all topics are used (full rotation then repeats).
+# If counter file is missing (first run), starts at 0.
+
+_COUNTER_FILE = "topic_counter.txt"
+
+try:
+    with open(_COUNTER_FILE, "r") as _f:
+        _run_count = int(_f.read().strip())
+except (FileNotFoundError, ValueError):
+    _run_count = 0
+
+# Advance counter for THIS run
+_run_count += 1
+_topic_index = (_run_count - 1) % len(_TOPICS)
+
+# Save updated counter back to file so next run picks the next topic
+with open(_COUNTER_FILE, "w") as _f:
+    _f.write(str(_run_count))
+
+_topic_name, _topic_angle, _topic_scene = _TOPICS[_topic_index]
+log("TOPIC", f"Run #{_run_count} → topic {_topic_index + 1}/{len(_TOPICS)}: {_topic_name}")
 
 TITLE_PROMPT = f"""
 You write titles for a viral US psychology YouTube Shorts channel targeting Americans 18-35.
