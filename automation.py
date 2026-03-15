@@ -435,3 +435,18 @@ with open(REPORT_FILE, "w", encoding="utf-8") as f:
 
 print("\n" + report + "\n")
 log("DONE", f"All files ready: {SCRIPT_FILE} | {VOICE_FILE} | {META_FILE} | {REPORT_FILE}")
+
+
+# ══════════════════════════════════════════════════════════
+# STEP 6 — MOVE ALL FILES INTO OUTPUT FOLDER
+# ══════════════════════════════════════════════════════════
+import shutil
+
+output_dir = f"output_{slug}"
+os.makedirs(output_dir, exist_ok=True)
+
+for f in [SCRIPT_FILE, VOICE_FILE, META_FILE, REPORT_FILE]:
+    if os.path.exists(f):
+        shutil.move(f, os.path.join(output_dir, os.path.basename(f)))
+
+log("DONE", f"All files moved to folder: {output_dir}/")
