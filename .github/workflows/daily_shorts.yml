@@ -1,26 +1,35 @@
-name: Daily YouTube Shorts
+name: Daily Psychology Shorts
 
 on:
   schedule:
-    - cron: '0 8 * * 0'  # 8 AM every Sunday
+    - cron: '0 8 * * *'   # Every day at 8 AM UTC
+  workflow_dispatch:        # Also allows manual trigger from GitHub
 
 jobs:
-  create-shorts:
+  create-short:
     runs-on: ubuntu-latest
-    
+
     steps:
-      - uses: actions/checkout@v2
-      
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: 3.9
-      
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install requests google-api-python-client google-auth-httplib2 google-auth-oauthlib
+
+      - name: Install ffmpeg
+        run: sudo apt-get install -y ffmpeg
+
       - name: Run automation
         env:
           GOOGLE_BARD_API: ${{ secrets.GOOGLE_BARD_API }}
           CLAUDE_API: ${{ secrets.CLAUDE_API }}
           ELEVENLABS_API: ${{ secrets.ELEVENLABS_API }}
           FREEPIK_API: ${{ secrets.FREEPIK_API }}
-          YOUTUBE_API: ${{ secrets.YOUTUBE_API }}
+          YOUTUBE_CREDENTIALS: ${{ secrets.YOUTUBE_CREDENTIALS }}
         run: python automation.py
