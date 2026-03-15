@@ -244,8 +244,8 @@ def health_safety_clean(text: str) -> str:
 def tts_clean(text: str) -> str:
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"\.\.+", ".", text)
-    text = re.sub(r"[""]", '"', text)
-    text = re.sub(r"['']", "'", text)
+    text = re.sub(u"[\u201c\u201d]", '"', text)   # " " → "
+    text = re.sub(u"[\u2018\u2019]", "'", text)   # ' ' → '
     return text.strip()
 
 def get_audio_duration(path: str):
