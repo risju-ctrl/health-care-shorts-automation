@@ -21,8 +21,7 @@ PEXELS_API = os.getenv("PEXELS_API")
 
 USE_TRENDS = os.getenv("USE_TRENDS", "1") == "1"
 
-# ── Alex (ElevenLabs) — trending YouTube Shorts voice ──
-DEFAULT_VOICE_ID = "SCbIlR40EEyW2I6quW1h"  # Alex
+# ── Target: young male voice (Alex-style) on free tier ──
 ELEVENLABS_MODEL = "eleven_turbo_v2_5"
 
 TARGET_WORDS = 150
@@ -31,84 +30,142 @@ TITLE_MAX = 58
 MIN_AUDIO_FILESIZE = 10_000
 
 # ══════════════════════════════════════════════════════════
-# ALEX VOICE PROFILES
-# Each hook type gets a tailored Alex setting:
-#   warning  → urgent, gripping — high style, lower stability for tension
-#   symptom  → calm authority — moderate style, stable delivery
-#   habit    → persuasive & motivating — expressive, punchy
-#   cost     → trustworthy explainer — measured, slightly persuasive
-#   myth     → curious & convincing — dynamic, confident
-#   news     → engaging conversational — natural energy, varied pace
+# FREE-TIER PREMADE VOICE DISCOVERY
+#
+# ElevenLabs free plans CANNOT use library/community voices
+# via the API — only "premade" (default) voices are allowed.
+#
+# Strategy:
+#   1. At startup, call /v1/voices to fetch all voices on the
+#      account and find the best young male premade voice.
+#   2. Fall back through a priority list of known free-tier
+#      premade male voice IDs if discovery fails.
+#
+# Known free-tier premade male voices (as of 2024):
+#   Charlie  → IKne3meq5aSn9XLyUdCD  (young, casual, energetic)
+#   Adam     → pNInz6obpgDQGcFmaJgB  (deep, authoritative)
+#   Josh     → TxGEqnHWrfWFTfGW9XjX  (warm, trustworthy)
+#   Arnold   → VR6AewLTigWG4xSOukaG  (strong, confident)
+#   Harry    → SOYHLrjzK2X1ezoPC9cr  (young, enthusiastic)
+# ══════════════════════════════════════════════════════════
+
+# Priority-ordered fallback list — first one that works wins
+FREE_MALE_VOICE_FALLBACKS = [
+    ("IKne3meq5aSn9XLyUdCD", "Charlie - young casual energetic"),
+    ("SOYHLrjzK2X1ezoPC9cr", "Harry - young enthusiastic"),
+    ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
+    ("VR6AewLTigWG4xSOukaG", "Arnold - strong confident"),
+    ("pNInz6obpgDQGcFmaJgB", "Adam - deep authoritative"),
+]
+
+def discover_best_male_voice(api_key: str) -> tuple:
+    """
+    Calls /v1/voices to list all premade voices on the account.
+    Looks for young male voices by name/label.
+    Returns (voice_id, label). Falls back to FREE_MALE_VOICE_FALLBACKS.
+    """
+    preferred_names = ["charlie", "harry", "josh", "arnold", "adam", "liam", "daniel", "sam"]
+    try:
+        r = requests.get(
+            "https://api.elevenlabs.io/v1/voices",
+            headers={"xi-api-key": api_key},
+            timeout=20,
+        )
+        r.raise_for_status()
+        voices = r.json().get("voices", [])
+        premade = [v for v in voices if v.get("category") in ("premade", "default")]
+
+        # Prefer by known name order
+        for name in preferred_names:
+            for v in premade:
+                if v.get("name", "").lower().startswith(name):
+                    vid = v["voice_id"]
+                    label = f"{v['name']} (premade - auto-discovered)"
+                    log("VOICE", f"Auto-discovered premade voice: {label} | {vid}")
+                    return vid, label
+
+        # Any premade male voice
+        for v in premade:
+            labels = str(v.get("labels", {})).lower()
+            if "male" in labels or "man" in labels:
+                vid = v["voice_id"]
+                label = f"{v['name']} (premade male - auto-discovered)"
+                log("VOICE", f"Auto-discovered premade male voice: {label} | {vid}")
+                return vid, label
+
+    except Exception as e:
+        log("VOICE", f"Voice discovery failed: {e}")
+
+    # Hard fallback — try each known ID in order
+    log("VOICE", "Falling back to known free-tier premade voice IDs...")
+    for vid, label in FREE_MALE_VOICE_FALLBACKS:
+        log("VOICE", f"Will try: {label} ({vid})")
+    first_id, first_label = FREE_MALE_VOICE_FALLBACKS[0]
+    return first_id, first_label
+
+
+# ── Resolve the actual voice ID at startup ──
+_RESOLVED_VOICE_ID, _RESOLVED_VOICE_LABEL = discover_best_male_voice(
+    os.getenv("ELEVENLABS_API", "")
+)
+
+def _make_profile(voice_id: str, label_prefix: str, tone: str, stability: float, style: float) -> Dict:
+    return {
+        "voice_id": voice_id,
+        "label": f"{label_prefix} - {_RESOLVED_VOICE_LABEL}",
+        "tone_instruction": tone,
+        "settings": {
+            "stability": stability,
+            "similarity_boost": 0.80,
+            "style": style,
+            "use_speaker_boost": True,
+        },
+    }
+
+# ══════════════════════════════════════════════════════════
+# VOICE PROFILES — dynamic tone, resolved free-tier voice
+#   warning  → urgent, gripping
+#   symptom  → calm authority
+#   habit    → persuasive & motivating
+#   cost     → trustworthy explainer
+#   myth     → myth-busting conviction
+#   news     → engaging conversational
 # ══════════════════════════════════════════════════════════
 
 VOICE_PROFILES = {
-    "warning": {
-        "voice_id": "SCbIlR40EEyW2I6quW1h",  # Alex
-        "label": "Alex - urgent warning tone",
-        "tone_instruction": "urgent, gripping, serious — speak like someone warning a friend about something they must not ignore",
-        "settings": {
-            "stability": 0.45,
-            "similarity_boost": 0.82,
-            "style": 0.38,
-            "use_speaker_boost": True,
-        },
-    },
-    "symptom": {
-        "voice_id": "SCbIlR40EEyW2I6quW1h",  # Alex
-        "label": "Alex - calm medical authority",
-        "tone_instruction": "calm and authoritative — speak clearly like a knowledgeable friend explaining a health symptom without alarm",
-        "settings": {
-            "stability": 0.55,
-            "similarity_boost": 0.80,
-            "style": 0.22,
-            "use_speaker_boost": True,
-        },
-    },
-    "habit": {
-        "voice_id": "SCbIlR40EEyW2I6quW1h",  # Alex
-        "label": "Alex - persuasive habit motivator",
-        "tone_instruction": "persuasive and motivating — speak like a coach who genuinely wants the listener to make a positive change today",
-        "settings": {
-            "stability": 0.42,
-            "similarity_boost": 0.78,
-            "style": 0.45,
-            "use_speaker_boost": True,
-        },
-    },
-    "cost": {
-        "voice_id": "SCbIlR40EEyW2I6quW1h",  # Alex
-        "label": "Alex - persuasive cost explainer",
-        "tone_instruction": "trustworthy and persuasive — speak like someone who just figured out the system and wants to save you money",
-        "settings": {
-            "stability": 0.52,
-            "similarity_boost": 0.82,
-            "style": 0.30,
-            "use_speaker_boost": True,
-        },
-    },
-    "myth": {
-        "voice_id": "SCbIlR40EEyW2I6quW1h",  # Alex
-        "label": "Alex - myth-busting conviction",
-        "tone_instruction": "confident and convincing — speak like someone who just learned the real truth and can't believe others don't know it yet",
-        "settings": {
-            "stability": 0.48,
-            "similarity_boost": 0.80,
-            "style": 0.40,
-            "use_speaker_boost": True,
-        },
-    },
-    "news": {
-        "voice_id": "SCbIlR40EEyW2I6quW1h",  # Alex
-        "label": "Alex - engaging conversational news",
-        "tone_instruction": "engaging and conversational — speak like you're sharing genuinely interesting health news with a friend over coffee",
-        "settings": {
-            "stability": 0.50,
-            "similarity_boost": 0.79,
-            "style": 0.35,
-            "use_speaker_boost": True,
-        },
-    },
+    "warning": _make_profile(
+        _RESOLVED_VOICE_ID, "urgent warning tone",
+        "urgent, gripping, serious — speak like someone warning a friend about something they must not ignore",
+        stability=0.45, style=0.38,
+    ),
+    "symptom": _make_profile(
+        _RESOLVED_VOICE_ID, "calm medical authority",
+        "calm and authoritative — speak clearly like a knowledgeable friend explaining a health symptom without alarm",
+        stability=0.55, style=0.22,
+    ),
+    "habit": _make_profile(
+        _RESOLVED_VOICE_ID, "persuasive habit motivator",
+        "persuasive and motivating — speak like a coach who genuinely wants the listener to make a positive change today",
+        stability=0.42, style=0.45,
+    ),
+    "cost": _make_profile(
+        _RESOLVED_VOICE_ID, "persuasive cost explainer",
+        "trustworthy and persuasive — speak like someone who just figured out the system and wants to save you money",
+        stability=0.52, style=0.30,
+    ),
+    "myth": _make_profile(
+        _RESOLVED_VOICE_ID, "myth-busting conviction",
+        "confident and convincing — speak like someone who just learned the real truth and can't believe others don't know it yet",
+        stability=0.48, style=0.40,
+    ),
+    "news": _make_profile(
+        _RESOLVED_VOICE_ID, "engaging conversational news",
+        "engaging and conversational — speak like you're sharing genuinely interesting health news with a friend over coffee",
+        stability=0.50, style=0.35,
+    ),
 }
+
+DEFAULT_VOICE_ID = _RESOLVED_VOICE_ID
 
 # ══════════════════════════════════════════════════════════
 # LOGGING
@@ -133,7 +190,7 @@ if missing:
         log("ERROR", f"  • {m}")
     sys.exit(1)
 
-log("CONFIG", f"Voice: Alex ({DEFAULT_VOICE_ID}) | Model: {ELEVENLABS_MODEL} | Target: {TARGET_WORDS} words")
+log("CONFIG", f"Voice: {_RESOLVED_VOICE_LABEL} ({DEFAULT_VOICE_ID}) | Model: {ELEVENLABS_MODEL} | Target: {TARGET_WORDS} words")
 log("CONFIG", f"Use Trends: {USE_TRENDS} | Claude fallback: {'yes' if CLAUDE_API else 'no'} | Pexels: {'yes' if PEXELS_API else 'no'}")
 
 # ══════════════════════════════════════════════════════════
@@ -1012,45 +1069,63 @@ if PEXELS_API and scene_plan:
 # STEP 4 — VOICE
 # ══════════════════════════════════════════════════════════
 
-log("VOICE", f"Generating audio with Alex ({VOICE_ID})...")
+log("VOICE", f"Generating audio — voice: {VOICE_LABEL} ({VOICE_ID})...")
 
 actual_duration = None
 voice_provider = "none"
 
-voice_payload = {
-    "text": script,
-    "model_id": ELEVENLABS_MODEL,
-    "voice_settings": VOICE_SETTINGS,
-}
-
-try:
-    voice_res = requests.post(
-        f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}",
-        headers={
-            "xi-api-key": ELEVENLABS_API,
-            "Content-Type": "application/json"
-        },
-        json=voice_payload,
-        timeout=90,
-    )
-
-    if voice_res.ok:
+def _try_elevenlabs_voice(vid: str, label: str) -> bool:
+    """Try a single ElevenLabs voice ID. Returns True on success."""
+    global actual_duration, voice_provider, VOICE_ID, VOICE_LABEL
+    try:
+        res = requests.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{vid}",
+            headers={
+                "xi-api-key": ELEVENLABS_API,
+                "Content-Type": "application/json",
+            },
+            json={
+                "text": script,
+                "model_id": ELEVENLABS_MODEL,
+                "voice_settings": VOICE_SETTINGS,
+            },
+            timeout=90,
+        )
+        if res.status_code == 402:
+            log("VOICE", f"402 payment_required for {label} ({vid}) — library voice blocked on free tier, skipping")
+            return False
+        if not res.ok:
+            log("VOICE", f"ElevenLabs {res.status_code} for {label}: {res.text[:200]}")
+            return False
         with open(VOICE_FILE, "wb") as f:
-            f.write(voice_res.content)
+            f.write(res.content)
+        if os.path.getsize(VOICE_FILE) < MIN_AUDIO_FILESIZE:
+            log("VOICE", f"Audio file too small for {label}, skipping")
+            return False
+        actual_duration = get_audio_duration(VOICE_FILE)
+        voice_provider = "elevenlabs"
+        VOICE_ID = vid
+        VOICE_LABEL = label
+        log("VOICE", f"Success — {label} ({vid}) | {VOICE_FILE} saved")
+        return True
+    except Exception as e:
+        log("VOICE", f"Exception for {label} ({vid}): {e}")
+        return False
 
-        if os.path.getsize(VOICE_FILE) >= MIN_AUDIO_FILESIZE:
-            actual_duration = get_audio_duration(VOICE_FILE)
-            voice_provider = "elevenlabs"
-            log("VOICE", f"ElevenLabs Alex success — {VOICE_FILE} saved")
-        else:
-            raise RuntimeError("ElevenLabs returned suspiciously small audio file")
-    else:
-        raise RuntimeError(f"ElevenLabs {voice_res.status_code}: {voice_res.text[:300]}")
+# Try the resolved/primary voice first, then walk the full fallback list
+voices_to_try = [(VOICE_ID, VOICE_LABEL)] + [
+    (vid, lbl) for vid, lbl in FREE_MALE_VOICE_FALLBACKS
+    if vid != VOICE_ID
+]
 
-except Exception as e:
-    log("VOICE", f"ElevenLabs failed: {e}")
-    log("VOICE", "Falling back to gTTS...")
+elevenlabs_ok = False
+for _vid, _lbl in voices_to_try:
+    if _try_elevenlabs_voice(_vid, _lbl):
+        elevenlabs_ok = True
+        break
 
+if not elevenlabs_ok:
+    log("VOICE", "All ElevenLabs voices failed — falling back to gTTS...")
     try:
         tts = gTTS(text=script, lang="en", tld="com")
         tts.save(VOICE_FILE)
