@@ -33,3 +33,9 @@ jobs:
           GROQ_API: ${{ secrets.GROQ_API }}
           ELEVENLABS_API: ${{ secrets.ELEVENLABS_API }}
         run: python automation.py
+
+      - name: Upload video
+        uses: actions/upload-artifact@v4
+        with:
+          name: psychology-short
+          path: short.mp4
