@@ -3,11 +3,11 @@ import os
 import json
 import requests
 from datetime import datetime
+import urllib.parse
 
 # ── API Keys ──────────────────────────────────────────────────────────────────
 GROQ_API       = os.getenv("GROQ_API")
 ELEVENLABS_API = os.getenv("ELEVENLABS_API")
-FREEPIK_API    = os.getenv("FREEPIK_API")
 
 ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
 
@@ -16,7 +16,6 @@ print("🔑 Checking API keys...")
 missing = []
 if not GROQ_API:       missing.append("GROQ_API")
 if not ELEVENLABS_API: missing.append("ELEVENLABS_API")
-if not FREEPIK_API:    missing.append("FREEPIK_API")
 if missing:
     print(f"❌ Missing secrets: {', '.join(missing)}")
     exit(1)
@@ -192,57 +191,40 @@ except Exception as e:
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 4 — Generate Background Image (Freepik)
+# STEP 4 — Generate Background Image (Pollinations - FREE, no key needed)
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n4️⃣  Generating background image with Freepik...")
+print("\n4️⃣  Generating background image with Pollinations...")
 
 try:
-    freepik_headers = {
-        "x-freepik-api-key": FREEPIK_API,
-        "Content-Type": "application/json"
-    }
-
     image_prompt = (
-        f"Cinematic vertical 9:16 illustration representing: {topic_data['topic']}. "
-        "Dark moody psychology aesthetic, neon blue and purple tones, "
+        f"Cinematic vertical psychology illustration representing: {topic_data['topic']}. "
+        "Dark moody aesthetic, neon blue and purple tones, "
         "brain silhouette, thought bubbles, ultra HD, dramatic lighting, "
-        "no text, no people's faces"
+        "no text, no faces"
     )
 
-    image_payload = {
-        "prompt": image_prompt,
-        "image": {
-            "size": "portrait_9_16"
-        },
-        "styling": {
-            "style": "photo",
-            "color": "dark"
-        }
-    }
+    encoded_prompt = urllib.parse.quote(image_prompt)
+    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=720&height=1280&nologo=true"
 
-    img_res = requests.post(
-        "https://api.freepik.com/v1/ai/text-to-image",
-        headers=freepik_headers,
-        json=image_payload,
-        timeout=60
-    )
-    print(f"   Freepik status: {img_res.status_code}")
+    print(f"   Fetching image from Pollinations...")
+    img_res = requests.get(image_url, timeout=60)
 
     if img_res.status_code != 200:
-        print(f"❌ Freepik error: {img_res.text}")
+        print(f"❌ Pollinations error: {img_res.status_code}")
         exit(1)
 
-    img_data = img_res.json()
-    image_url = img_data["data"][0]["url"]
-    img_file_res = requests.get(image_url, timeout=30)
     image_path = "background.jpg"
     with open(image_path, "wb") as f:
-        f.write(img_file_res.content)
+        f.write(img_res.content)
+
+    if os.path.getsize(image_path) < 1000:
+        print("❌ Image file too small — something went wrong")
+        exit(1)
 
     print(f"✓ Background image saved ({os.path.getsize(image_path)} bytes)")
 
 except requests.exceptions.Timeout:
-    print("❌ Freepik timed out")
+    print("❌ Pollinations timed out")
     exit(1)
 except Exception as e:
     print(f"❌ Unexpected error in Step 4: {e}")
