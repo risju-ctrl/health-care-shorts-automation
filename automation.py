@@ -1,73 +1,114 @@
 import os
 import re
 import math
+import time
 import requests
-import json
 import subprocess
 import urllib.parse
 import sys
 
 # ──────────────────────────────────────────────
-# ENV / CONFIG
+# ENV
 # ──────────────────────────────────────────────
 
-CLAUDE_API     = os.getenv("CLAUDE_API")
+GROQ_API       = os.getenv("GROQ_API")        # free — primary LLM
+CLAUDE_API     = os.getenv("CLAUDE_API")       # optional paid fallback
 ELEVENLABS_API = os.getenv("ELEVENLABS_API")
 PEXELS_API     = os.getenv("PEXELS_API")
 
-VOICE_ID        = "TxGEqnHWrfWFTfGW9XjX"   # keep your existing voice
-TARGET_DURATION = 58                         # seconds
-WORDS_PER_MIN   = 145                        # ElevenLabs pacing at default speed
-TARGET_WORDS    = int(TARGET_DURATION / 60 * WORDS_PER_MIN)   # ≈ 140 words
+VOICE_ID        = "TxGEqnHWrfWFTfGW9XjX"
+TARGET_DURATION = 58
+WORDS_PER_MIN   = 145
+TARGET_WORDS    = int(TARGET_DURATION / 60 * WORDS_PER_MIN)  # ~140
+
+# ──────────────────────────────────────────────
+# LOGGING
+# ──────────────────────────────────────────────
+
+def log(step: str, msg: str = ""):
+    print(f"[{step}] {msg}" if msg else f"[{step}]", flush=True)
 
 # ──────────────────────────────────────────────
 # STARTUP VALIDATION
 # ──────────────────────────────────────────────
 
-missing = [name for name, val in [
-    ("CLAUDE_API", CLAUDE_API),
-    ("ELEVENLABS_API", ELEVENLABS_API),
-    ("PEXELS_API", PEXELS_API),
-] if not val]
+errors = []
+if not GROQ_API:
+    errors.append("GROQ_API — required (free at console.groq.com)")
+if not ELEVENLABS_API:
+    errors.append("ELEVENLABS_API — required for voice generation")
+if not PEXELS_API:
+    errors.append("PEXELS_API — required for video clips")
 
-if missing:
-    print(f"[ERROR] Missing environment variables: {', '.join(missing)}")
-    print("  → Make sure these are set as GitHub repository secrets")
-    print("    and referenced in the workflow env: block.")
+if errors:
+    log("ERROR", "Missing GitHub secrets:")
+    for e in errors:
+        log("ERROR", f"  • {e}")
+    log("ERROR", "Go to repo Settings → Secrets → Actions and add them.")
     sys.exit(1)
 
+if CLAUDE_API:
+    log("CONFIG", "LLM: Groq (primary) + Claude (fallback)")
+else:
+    log("CONFIG", "LLM: Groq only — add CLAUDE_API secret for fallback")
+
 # ──────────────────────────────────────────────
-# HELPERS
+# LLM HELPERS — Groq first, Claude fallback
 # ──────────────────────────────────────────────
 
-def claude(prompt: str, max_tokens: int = 1200) -> str:
-    """Single-turn Claude call. Headers built here so env is always live."""
-    headers = {
-        "x-api-key": CLAUDE_API,           # read at call-time, never at import
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": "claude-sonnet-4-6",      # current model string (no date suffix)
-        "max_tokens": max_tokens,
-        "messages": [{"role": "user", "content": prompt}],
-    }
+def _groq(prompt: str, max_tokens: int) -> str:
+    r = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {GROQ_API}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "llama-3.3-70b-versatile",
+            "max_tokens": max_tokens,
+            "temperature": 0.85,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        timeout=60,
+    )
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"].strip()
+
+
+def _claude(prompt: str, max_tokens: int) -> str:
     r = requests.post(
         "https://api.anthropic.com/v1/messages",
-        headers=headers,
-        json=payload,
+        headers={
+            "x-api-key": CLAUDE_API,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "claude-sonnet-4-6",
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        },
         timeout=60,
     )
     if not r.ok:
-        print(f"[ERROR] Claude API {r.status_code}: {r.text[:300]}")
-    r.raise_for_status()
-    data = r.json()
-    return data["content"][0]["text"].strip()
+        raise RuntimeError(f"Claude {r.status_code}: {r.text[:200]}")
+    return r.json()["content"][0]["text"].strip()
 
 
-def log(step: str, msg: str = ""):
-    tag = f"[{step}]"
-    print(f"{tag} {msg}" if msg else tag)
+def llm(prompt: str, max_tokens: int = 1200, step: str = "") -> str:
+    """Try Groq. If it fails, try Claude if available. Raise if both fail."""
+    try:
+        return _groq(prompt, max_tokens)
+    except Exception as e:
+        log(step or "LLM", f"Groq error: {e}")
+        if CLAUDE_API:
+            log(step or "LLM", "Falling back to Claude...")
+            try:
+                return _claude(prompt, max_tokens)
+            except Exception as e2:
+                log(step or "LLM", f"Claude error: {e2}")
+                raise RuntimeError(f"Both LLMs failed. Last: {e2}") from e2
+        raise RuntimeError(f"Groq failed, no Claude fallback: {e}") from e
 
 
 # ──────────────────────────────────────────────
@@ -77,32 +118,29 @@ def log(step: str, msg: str = ""):
 log("TITLE", "Generating...")
 
 title_prompt = """
-You are a top-performing YouTube Shorts strategist for US psychology content.
+You are a top YouTube Shorts strategist for US psychology content.
+Your titles hit 8-12% CTR because you know exactly what makes Americans 18-35 stop scrolling.
 
-Your titles consistently hit 8–12% CTR on Shorts because you understand
-what makes American viewers (18–35) stop scrolling.
+Generate ONE viral psychology title.
 
-Generate ONE viral psychology title. Follow every rule:
+HARD RULES:
+- Under 55 characters
+- Triggers: curiosity gap, self-doubt, social fear, or identity threat
+- Plain conversational American English — zero jargon
+- Feels personal, like it's calling the viewer out directly
+- No "this will change your life" overpromising
 
-RULES:
-- Under 55 characters including spaces
-- Must trigger one of: curiosity gap, self-doubt, social fear, or identity threat
-- Written in plain American English — no jargon, no SAT words
-- Must feel personal, like it's calling the viewer out directly
-- No clickbait that overpromises (avoid "this will change your life")
-- Use second-person ("you / your") OR a provocative statement
+PROVEN FORMATS (pick one and adapt):
+- Why you [surprising behavior] without realizing it
+- The real reason people [universal behavior]
+- You're not [label] — you're just [reframe]
+- What your [habit] is actually telling you
+- The hidden reason you [relatable struggle]
 
-FORMATS THAT WORK WELL:
-- "Why you [do surprising thing] without knowing it"
-- "The real reason people [universal behavior]"
-- "You're not [label] — you're just [reframe]"
-- "What your [habit/reaction] reveals about you"
-- "The hidden reason you [relatable struggle]"
-
-Return only the title. No quotes. No explanation.
+Return ONLY the title. No quotes. No period. No explanation.
 """
 
-title = claude(title_prompt, max_tokens=100)
+title = llm(title_prompt, max_tokens=80, step="TITLE").strip('"\'')
 log("TITLE", title)
 
 
@@ -113,52 +151,43 @@ log("TITLE", title)
 log("SCRIPT", "Writing...")
 
 script_prompt = f"""
-You are writing a YouTube Shorts script for a US psychology channel.
-The voice is calm, direct, and slightly intense — like a trusted friend
-who just learned something that reframes everything.
-
-TARGET: exactly {TARGET_WORDS} words (±5 words). This fills exactly 58 seconds
-at 145 wpm. Count carefully.
+Write a YouTube Shorts voiceover script for a US psychology channel.
 
 TOPIC: {title}
+TARGET: exactly {TARGET_WORDS} words (between {TARGET_WORDS - 5} and {TARGET_WORDS + 5})
+AUDIENCE: Americans 18-35 who follow therapy TikTok, self-improvement, and psychology content
 
-AUDIENCE: Americans 18–35 who follow self-improvement, therapy TikTok,
-and psychology content. They respond to relatable moments, not lectures.
+VOICE: Calm, direct, slightly intense. Like a trusted friend who just figured something out.
 
 TONE RULES:
-- Second person ("you / your") throughout
-- Plain American English — 6th grade reading level
-- No scientific terms (say "your brain tricks you" not "cognitive dissonance")
-- Short punchy sentences. Average 8 words per sentence.
-- One idea per sentence. Never compound two insights.
-- Conversational — write how people actually talk, not how they write
+- Second person (you/your) throughout
+- 6th grade reading level
+- No science terms. Say "your brain tricks you" not "cognitive dissonance"
+- Short sentences, average 8 words each
+- One idea per sentence. Never stack two insights.
+- Write how people actually talk
 
-STRUCTURE (follow in order):
-1. HOOK (first 2 sentences): State something uncomfortable or surprising
-   that makes the viewer feel seen. DO NOT start with "Have you ever".
-   Start mid-thought, like you're already in the conversation.
-2. THE INSIGHT (3–4 sentences): Explain the psychology behind it simply.
-   Use a metaphor from everyday American life (work, dating, social media,
-   family, money) to make it concrete.
-3. THE EXAMPLE (3–4 sentences): Tell a specific mini-story. A relatable
-   scenario. Give it texture — a detail that makes it feel real.
-4. THE REFLECTION (final 2–3 sentences): End with a reframe that makes
-   the viewer feel understood, not blamed. Last line should land like
-   a quiet revelation — not a motivational quote.
+STRUCTURE:
+1. HOOK (2 sentences) — Start mid-thought with something uncomfortable that makes the viewer feel seen.
+   Never start with "Have you ever" or "Did you know".
+2. THE INSIGHT (3-4 sentences) — Explain using a metaphor from American daily life:
+   work, social media, dating, money, family.
+3. THE EXAMPLE (3-4 sentences) — A specific mini-story with one real detail that makes it feel true.
+4. THE REFLECTION (2-3 sentences) — Reframe that makes the viewer feel understood not blamed.
+   Final line = quiet revelation, not a motivational quote.
 
-FORBIDDEN:
-- "Have you ever…" as an opener
-- "It's okay to…" (too therapy-speak)
-- "Science shows…" or "Studies say…"
+BANNED:
+- "Have you ever" opener
+- "It's okay to"
+- "Science shows" / "Studies say" / "Research proves"
 - Exclamation marks
-- The word "actually" more than once
-- Filler phrases: "at the end of the day", "the thing is", "here's the deal"
+- "at the end of the day" / "the thing is" / "here's the deal" / "in today's world"
+- The word "journey"
 
-Return only the script. No scene labels. No parentheticals. Plain text only.
+Return ONLY the script. No labels. No scene markers. Plain text only.
 """
 
-script = claude(script_prompt, max_tokens=500)
-
+script = llm(script_prompt, max_tokens=600, step="SCRIPT")
 word_count = len(script.split())
 log("SCRIPT", f"{word_count} words")
 
@@ -167,224 +196,248 @@ with open("script.txt", "w") as f:
 
 
 # ──────────────────────────────────────────────
-# STEP 3 — SCENES
+# STEP 3 — SCENE DESCRIPTIONS
 # ──────────────────────────────────────────────
 
-log("SCENES", "Breaking into scenes...")
+log("SCENES", "Building visual descriptions...")
 
-# Calculate scene count based on actual word count so clip math is exact
-# Each scene = ~5 spoken words → clips_needed = words / 5
-raw_scene_count = max(10, min(16, math.ceil(word_count / 5)))  # 10–16 scenes
-clip_duration   = round(TARGET_DURATION / raw_scene_count, 1)  # seconds per clip
+raw_scene_count = max(10, min(15, math.ceil(word_count / 9)))
+clip_duration   = round(TARGET_DURATION / raw_scene_count, 2)
 
 scene_prompt = f"""
-Break this script into exactly {raw_scene_count} visual scenes.
+Split this script into exactly {raw_scene_count} visual scenes for a YouTube Short.
 
-Rules:
-- Each scene covers roughly 5 spoken words of the script
-- Scenes must cover the ENTIRE script in order — do not skip any lines
-- Every scene needs a distinct visual moment — no two scenes can be the same setting
+RULES:
+- Each scene covers roughly 9 spoken words
+- Cover the ENTIRE script in order
+- Every scene must be a DISTINCT setting — no two scenes can look the same
+- Descriptions must work as stock footage search terms
 
-For each scene output this exact format and nothing else:
+EXACT FORMAT — use this for every scene:
 
 SCENE_START
-Script Lines: [the 5 or so words from the script this scene covers]
-Visual: [one sentence describing what the viewer sees — be specific about
-         setting, lighting, and emotional tone. US urban/suburban environments.
-         Cinematic, photorealistic style. No text or UI in frame.]
+Lines: [~9 words from the script this scene covers]
+Visual: [one sentence: specific US setting, action, lighting. Photorealistic. No text in frame.]
 SCENE_END
 
 Script:
 {script}
 """
 
-scene_raw = claude(scene_prompt, max_tokens=1800)
+scene_raw = llm(scene_prompt, max_tokens=2000, step="SCENES")
 
-# Parse scenes
 visuals = []
 for block in scene_raw.split("SCENE_START"):
     if "Visual:" in block:
-        line = [l for l in block.split("\n") if l.strip().startswith("Visual:")][0]
-        visuals.append(line.replace("Visual:", "").strip())
+        for line in block.split("\n"):
+            if line.strip().startswith("Visual:"):
+                visuals.append(line.replace("Visual:", "").strip())
+                break
 
-log("SCENES", f"{len(visuals)} scenes parsed")
+if not visuals:
+    log("SCENES", "Parse failed — using built-in fallback visuals")
+    fallback_visuals = [
+        "person sitting alone at a coffee shop window, city lights at night",
+        "close up of hands scrolling a phone, warm lamp light in a bedroom",
+        "young man staring at the ceiling in a dark room, soft window light",
+        "woman walking alone on an empty city sidewalk at dusk",
+        "close up of a face reflected in a car window, emotional expression",
+        "person typing a message then deleting it on their phone, kitchen",
+        "overhead shot of a person lying on a bed staring up",
+        "silhouette of a person at a window watching rain outside",
+        "hands wrapped around a coffee mug, soft morning light on a table",
+        "person sitting alone on apartment steps at night, streetlight above",
+        "close up of eyes staring into the distance, blurred background",
+        "person leaning against a wall in a hallway, head slightly down",
+    ]
+    visuals = (fallback_visuals * math.ceil(raw_scene_count / len(fallback_visuals)))[:raw_scene_count]
+
+log("SCENES", f"{len(visuals)} scenes")
 
 
 # ──────────────────────────────────────────────
 # STEP 4 — PEXELS VIDEO CLIPS
-# (replaces broken Whisk + Grok calls)
 # ──────────────────────────────────────────────
 
-log("PEXELS", "Downloading clips...")
+log("PEXELS", "Building search queries...")
 
-def pexels_clip(query: str, filename: str, min_duration: int = 4) -> bool:
-    """Download a Pexels vertical video matching query. Returns True on success."""
+query_prompt = f"""
+Convert each visual description below into a 2-4 word Pexels stock video search query.
+Only keep the physical subject and main action. Remove lighting, mood, and style words.
+Short concrete queries work best on Pexels.
+
+Reply with one query per line, numbered. Nothing else.
+
+Visuals:
+{chr(10).join(f"{i+1}. {v}" for i, v in enumerate(visuals))}
+"""
+
+query_raw = llm(query_prompt, max_tokens=500, step="PEXELS")
+
+queries = []
+for line in query_raw.strip().split("\n"):
+    clean = re.sub(r"^\d+[\.\)\-\s]+", "", line).strip()
+    if clean:
+        queries.append(clean)
+
+while len(queries) < len(visuals):
+    queries.append("person alone thinking")
+queries = queries[:len(visuals)]
+
+log("PEXELS", f"Sample queries: {queries[:4]}")
+
+
+PEXELS_FALLBACKS = [
+    "person thinking",
+    "person alone city night",
+    "emotional person window",
+    "person walking urban",
+    "contemplative person indoors",
+    "person sitting alone",
+]
+
+
+def pexels_clip(query: str, filename: str, min_dur: int = 4) -> bool:
     url = (
-        f"https://api.pexels.com/videos/search"
+        "https://api.pexels.com/videos/search"
         f"?query={urllib.parse.quote(query)}"
-        f"&orientation=portrait"
-        f"&per_page=15"
-        f"&size=medium"
+        "&orientation=portrait&per_page=15&size=medium"
     )
     try:
         res = requests.get(url, headers={"Authorization": PEXELS_API}, timeout=15)
         res.raise_for_status()
         videos = res.json().get("videos", [])
     except Exception as e:
-        log("PEXELS", f"Search failed for '{query}': {e}")
+        log("PEXELS", f"  API error '{query}': {e}")
         return False
 
     for v in videos:
-        # Must be long enough for our clip_duration
-        if v.get("duration", 0) < min_duration:
+        if v.get("duration", 0) < min_dur:
             continue
-        # Prefer highest-res portrait file
-        files = sorted(
-            [f for f in v["video_files"] if f.get("height", 0) >= f.get("width", 1)],
-            key=lambda x: x.get("height", 0),
-            reverse=True,
-        )
-        if not files:
-            # Fall back to any file
-            files = sorted(v["video_files"], key=lambda x: x.get("height", 0), reverse=True)
-        link = files[0]["link"]
+        vfiles = v.get("video_files", [])
+        portrait = [f for f in vfiles if f.get("height", 0) >= f.get("width", 1)]
+        ranked = sorted(portrait or vfiles, key=lambda x: x.get("height", 0), reverse=True)
+        if not ranked:
+            continue
         try:
-            r = requests.get(link, timeout=30)
-            with open(filename, "wb") as f:
-                f.write(r.content)
-            if os.path.getsize(filename) > 100_000:
+            r = requests.get(ranked[0]["link"], timeout=45, stream=True)
+            with open(filename, "wb") as fh:
+                for chunk in r.iter_content(chunk_size=65536):
+                    fh.write(chunk)
+            if os.path.exists(filename) and os.path.getsize(filename) > 50_000:
                 return True
         except Exception as e:
-            log("PEXELS", f"Download failed: {e}")
+            log("PEXELS", f"  Download error: {e}")
+            if os.path.exists(filename):
+                os.remove(filename)
 
     return False
 
 
-# Build search queries from visuals using Claude (batched, 1 call)
-log("PEXELS", "Converting visuals to search queries...")
-
-query_prompt = f"""
-Convert each visual description into a short 2–4 word Pexels video search query.
-Focus on the physical setting and action. Ignore mood/lighting words.
-Pexels works best with simple concrete terms.
-
-Respond with one query per line, numbered, matching the scene order.
-No extra text.
-
-Visuals:
-{chr(10).join(f"{i+1}. {v}" for i, v in enumerate(visuals))}
-"""
-
-query_raw = claude(query_prompt, max_tokens=600)
-queries = []
-for line in query_raw.strip().split("\n"):
-    line = re.sub(r"^\d+[\.\)]\s*", "", line).strip()
-    if line:
-        queries.append(line)
-
-# Pad / trim to match visuals count
-while len(queries) < len(visuals):
-    queries.append("person thinking city")
-queries = queries[:len(visuals)]
-
-log("PEXELS", f"Queries: {queries}")
-
 raw_clips = []
+min_dur = max(3, math.ceil(clip_duration))
+
 for i, q in enumerate(queries):
     fname = f"raw_{i}.mp4"
-    if pexels_clip(q, fname, min_duration=math.ceil(clip_duration)):
+    if pexels_clip(q, fname, min_dur=min_dur):
         raw_clips.append(fname)
-        log("PEXELS", f"  ✓ Scene {i+1}: {q}")
+        log("PEXELS", f"  ✓ {i+1}/{len(queries)}: {q}")
     else:
-        # Fallback query
-        fallback = "person alone thinking"
-        if pexels_clip(fallback, fname, min_duration=3):
-            raw_clips.append(fname)
-            log("PEXELS", f"  ↩ Scene {i+1} fallback used")
-        else:
-            log("PEXELS", f"  ✗ Scene {i+1} skipped")
+        downloaded = False
+        for fb in PEXELS_FALLBACKS:
+            if pexels_clip(fb, fname, min_dur=3):
+                raw_clips.append(fname)
+                log("PEXELS", f"  ↩ {i+1}/{len(queries)}: fallback '{fb}'")
+                downloaded = True
+                break
+        if not downloaded:
+            log("PEXELS", f"  ✗ {i+1}/{len(queries)}: skipped")
+    time.sleep(0.3)
 
-if len(raw_clips) < 3:
-    log("ERROR", f"Only {len(raw_clips)} clips downloaded. Aborting.")
+if len(raw_clips) < 5:
+    log("ERROR", f"Only {len(raw_clips)} clips downloaded — need at least 5.")
+    log("ERROR", "Check that PEXELS_API secret is correct and not expired.")
     sys.exit(1)
 
 log("PEXELS", f"{len(raw_clips)} clips ready")
 
 
 # ──────────────────────────────────────────────
-# STEP 5 — VOICE
+# STEP 5 — VOICE (ElevenLabs)
 # ──────────────────────────────────────────────
 
 log("VOICE", "Generating...")
 
 voice_res = requests.post(
     f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}",
-    headers={
-        "xi-api-key": ELEVENLABS_API,
-        "Content-Type": "application/json",
-    },
+    headers={"xi-api-key": ELEVENLABS_API, "Content-Type": "application/json"},
     json={
         "text": script,
         "model_id": "eleven_flash_v2_5",
         "voice_settings": {
-            "stability": 0.45,       # slight variation = more human
+            "stability": 0.45,
             "similarity_boost": 0.80,
-            "style": 0.25,           # adds emotional expressiveness
+            "style": 0.25,
             "use_speaker_boost": True,
         },
     },
-    timeout=60,
+    timeout=90,
 )
-voice_res.raise_for_status()
+
+if not voice_res.ok:
+    log("ERROR", f"ElevenLabs {voice_res.status_code}: {voice_res.text[:200]}")
+    sys.exit(1)
 
 with open("voice.mp3", "wb") as f:
     f.write(voice_res.content)
 
-# Probe actual audio duration
 probe = subprocess.run(
     ["ffprobe", "-v", "error", "-show_entries", "format=duration",
      "-of", "default=noprint_wrappers=1:nokey=1", "voice.mp3"],
     capture_output=True, text=True,
 )
-actual_duration = float(probe.stdout.strip()) if probe.stdout.strip() else TARGET_DURATION
-log("VOICE", f"Duration: {actual_duration:.1f}s")
+try:
+    actual_duration = float(probe.stdout.strip())
+except (ValueError, AttributeError):
+    actual_duration = TARGET_DURATION
+    log("VOICE", "ffprobe parse failed — using target duration")
+
+log("VOICE", f"{actual_duration:.1f}s")
 
 
 # ──────────────────────────────────────────────
-# STEP 6 — PROCESS CLIPS (uniform duration, 9:16)
+# STEP 6 — PROCESS CLIPS
 # ──────────────────────────────────────────────
 
-log("VIDEO", "Processing clips...")
+log("VIDEO", "Processing clips to 9:16...")
 
-# Recalculate per-clip duration based on ACTUAL voice duration
 per_clip = actual_duration / len(raw_clips)
-
 processed = []
+
 for i, c in enumerate(raw_clips):
     out = f"proc_{i}.mp4"
-    # crop to 9:16 portrait, scale to 720×1280, trim to per_clip, re-encode once
     cmd = (
         f'ffmpeg -y -i "{c}" '
         f'-vf "crop=ih*9/16:ih,scale=720:1280,setsar=1" '
         f'-t {per_clip:.3f} '
         f'-r 30 -c:v libx264 -preset fast -crf 23 '
-        f'-an "{out}" 2>/dev/null'
+        f'-an "{out}"'
     )
-    result = os.system(cmd)
-    if result == 0 and os.path.exists(out) and os.path.getsize(out) > 10_000:
+    res = subprocess.run(cmd, shell=True, capture_output=True)
+    if res.returncode == 0 and os.path.exists(out) and os.path.getsize(out) > 10_000:
         processed.append(out)
     else:
-        log("VIDEO", f"  ✗ clip {i} failed to process")
+        log("VIDEO", f"  ✗ proc {i}: {res.stderr[-150:].decode(errors='ignore')}")
 
 if not processed:
-    log("ERROR", "No processed clips. Aborting.")
+    log("ERROR", "Zero clips processed. Aborting.")
     sys.exit(1)
 
-log("VIDEO", f"{len(processed)} clips processed at {per_clip:.1f}s each")
+log("VIDEO", f"{len(processed)} clips at {per_clip:.2f}s each")
 
 
 # ──────────────────────────────────────────────
-# STEP 7 — CONCAT + MIX AUDIO (single FFmpeg pass)
+# STEP 7 — CONCAT SILENT VIDEO
 # ──────────────────────────────────────────────
 
 log("VIDEO", "Concatenating...")
@@ -393,50 +446,60 @@ with open("list.txt", "w") as f:
     for p in processed:
         f.write(f"file '{p}'\n")
 
-# Concat silent video
-concat_result = subprocess.run(
+concat = subprocess.run(
     "ffmpeg -y -f concat -safe 0 -i list.txt -c copy silent.mp4",
     shell=True, capture_output=True, text=True,
 )
-if concat_result.returncode != 0:
-    log("ERROR", concat_result.stderr[-500:])
+if concat.returncode != 0:
+    log("ERROR", f"Concat failed: {concat.stderr[-400:]}")
     sys.exit(1)
+
+log("VIDEO", "Silent video ready")
 
 
 # ──────────────────────────────────────────────
-# STEP 8 — SUBTITLES (burned-in captions)
+# STEP 8 — SUBTITLES
 # ──────────────────────────────────────────────
 
 log("SUBTITLES", "Generating SRT...")
 
-# Ask Claude to split script into ~3-word caption chunks with timing
 subtitle_prompt = f"""
-Create SRT subtitles for this script spoken at {WORDS_PER_MIN} words per minute.
-Total duration: {actual_duration:.1f} seconds.
+Generate an SRT subtitle file for this voiceover.
 
-Rules:
-- 2–4 words per subtitle line (short = readable on mobile)
-- Time each line proportionally to word count
-- Capitalize first word only, no punctuation except commas and periods at end of sentence
-- SRT format exactly: index, timecode (HH:MM:SS,mmm --> HH:MM:SS,mmm), text, blank line
+Speech rate: {WORDS_PER_MIN} words per minute
+Total duration: {actual_duration:.1f} seconds
 
-Return only the SRT content. No explanation.
+RULES:
+- 2-4 words per caption line
+- Time proportionally by word count
+- Capitalize first word only
+- No punctuation except commas mid-sentence and a period at sentence end
+- Strict SRT format:
+
+1
+00:00:00,000 --> 00:00:02,000
+Caption text here
+
+2
+00:00:02,000 --> 00:00:04,000
+Next caption here
+
+Return ONLY the SRT. No markdown fences. No explanation.
 
 Script:
 {script}
 """
 
-srt_content = claude(subtitle_prompt, max_tokens=2000)
+srt_raw = llm(subtitle_prompt, max_tokens=2500, step="SUBTITLES")
+srt_clean = re.sub(r"```[a-zA-Z]*\n?", "", srt_raw).strip()
 
-# Validate it at least looks like SRT
-if "-->" in srt_content:
-    with open("subtitles.srt", "w") as f:
-        f.write(srt_content)
-    has_subs = True
-    log("SUBTITLES", "SRT written")
+has_subs = "-->" in srt_clean
+if has_subs:
+    with open("subtitles.srt", "w", encoding="utf-8") as f:
+        f.write(srt_clean)
+    log("SUBTITLES", "SRT ready")
 else:
-    has_subs = False
-    log("SUBTITLES", "SRT generation failed — skipping captions")
+    log("SUBTITLES", "Invalid SRT — skipping captions")
 
 
 # ──────────────────────────────────────────────
@@ -445,84 +508,91 @@ else:
 
 log("VIDEO", "Final render...")
 
-if has_subs:
-    # Burn subtitles with bold white text + black outline (mobile-readable)
-    sub_filter = (
-        "subtitles=subtitles.srt:force_style='"
-        "FontName=Arial,FontSize=22,Bold=1,"
-        "PrimaryColour=&H00FFFFFF,"   # white
-        "OutlineColour=&H00000000,"   # black outline
-        "Outline=2,Shadow=1,"
-        "Alignment=2,"                # bottom-center
-        "MarginV=60'"                 # lift off bottom edge
+def build_final(with_subs: bool) -> int:
+    if with_subs:
+        srt_path = os.path.abspath("subtitles.srt").replace("\\", "/").replace(":", "\\:")
+        vf = (
+            f"scale=720:1280,"
+            f"subtitles='{srt_path}':force_style='"
+            "FontName=Arial,FontSize=20,Bold=1,"
+            "PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00000000,"
+            "Outline=2,Shadow=1,"
+            "Alignment=2,MarginV=80'"
+        )
+    else:
+        vf = "scale=720:1280"
+
+    cmd = (
+        f'ffmpeg -y '
+        f'-i silent.mp4 '
+        f'-i voice.mp3 '
+        f'-vf "{vf}" '
+        f'-c:v libx264 -preset fast -crf 22 '
+        f'-c:a aac -b:a 128k '
+        f'-t {actual_duration:.3f} '
+        f'-shortest '
+        f'-movflags +faststart '
+        f'short.mp4'
     )
-    vf = f'scale=720:1280,{sub_filter}'
-else:
-    vf = "scale=720:1280"
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        log("VIDEO", f"FFmpeg stderr: {result.stderr[-400:]}")
+    return result.returncode
 
-final_cmd = (
-    f'ffmpeg -y '
-    f'-i silent.mp4 '
-    f'-i voice.mp3 '
-    f'-vf "{vf}" '
-    f'-c:v libx264 -preset fast -crf 22 '
-    f'-c:a aac -b:a 128k '
-    f'-t {actual_duration:.3f} '
-    f'-shortest '
-    f'-movflags +faststart '
-    f'short.mp4'
-)
 
-final_result = subprocess.run(final_cmd, shell=True, capture_output=True, text=True)
+code = build_final(with_subs=has_subs)
 
-if final_result.returncode != 0:
-    log("ERROR", final_result.stderr[-800:])
+if code != 0 and has_subs:
+    log("VIDEO", "Subtitle render failed — retrying without captions")
+    code = build_final(with_subs=False)
+
+if code != 0:
+    log("ERROR", "Final render failed on both attempts. Aborting.")
     sys.exit(1)
 
+mode = "with captions" if has_subs else "without captions (libass not available)"
+log("VIDEO", f"Rendered {mode}")
+
 
 # ──────────────────────────────────────────────
-# STEP 10 — METADATA + DESCRIPTION
+# STEP 10 — METADATA
 # ──────────────────────────────────────────────
 
-log("META", "Writing metadata...")
+log("META", "Writing...")
 
 meta_prompt = f"""
-Write YouTube Shorts metadata for this psychology video targeting US viewers 18–35.
+Write YouTube Shorts upload metadata for a US psychology channel targeting viewers 18-35.
 
 Title: {title}
+Script opening: {' '.join(script.split()[:30])}...
 
-Script summary (first 3 lines):
-{chr(10).join(script.split(chr(10))[:3])}
-
-Output in this exact format:
+Output in this EXACT format:
 
 TITLE:
-[the title]
+{title}
 
 DESCRIPTION:
-[3 sentences. First hooks with the topic. Second teases the insight.
-Third ends with a CTA to follow for more psychology content.
-Under 200 characters total — Shorts descriptions get cut off.]
+[2-3 sentences under 200 chars total. Hook the topic, tease the insight, CTA to follow]
 
 HASHTAGS:
-[10 hashtags: mix of broad (#psychology #mindset) and niche
-(#darkpsychology #behaviortok #mentalhealth) — one line, space-separated]
+[10 hashtags on one line: mix broad (#psychology #mindset) and niche (#darkpsychology #behaviortok)]
 
 TAGS_CSV:
-[20 comma-separated tags for YouTube tag field, no # symbol]
+[20 comma-separated YouTube tags, no # symbol]
 """
 
-meta = claude(meta_prompt, max_tokens=400)
-
+meta = llm(meta_prompt, max_tokens=400, step="META")
 with open("metadata.txt", "w") as f:
     f.write(meta)
 
-log("META", "metadata.txt written")
+log("META", "metadata.txt saved")
+
 
 # ──────────────────────────────────────────────
 # DONE
 # ──────────────────────────────────────────────
 
 size_mb = os.path.getsize("short.mp4") / 1_048_576
-log("DONE", f"short.mp4 ready — {size_mb:.1f} MB | {actual_duration:.1f}s | {word_count} words")
-print(f"\nTitle: {title}")
+log("DONE", f"short.mp4 — {size_mb:.1f} MB | {actual_duration:.1f}s | {word_count} words")
+log("DONE", f"Title: {title}")
