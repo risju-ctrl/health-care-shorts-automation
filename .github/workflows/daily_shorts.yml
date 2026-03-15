@@ -2,8 +2,11 @@ name: Daily Psychology Shorts
 
 on:
   schedule:
-    - cron: '0 8 * * *'   # Every day at 8 AM UTC
-  workflow_dispatch:        # Also allows manual trigger from GitHub
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   create-short:
@@ -11,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
@@ -31,5 +34,4 @@ jobs:
           CLAUDE_API: ${{ secrets.CLAUDE_API }}
           ELEVENLABS_API: ${{ secrets.ELEVENLABS_API }}
           FREEPIK_API: ${{ secrets.FREEPIK_API }}
-          YOUTUBE_CREDENTIALS: ${{ secrets.YOUTUBE_CREDENTIALS }}
         run: python automation.py
