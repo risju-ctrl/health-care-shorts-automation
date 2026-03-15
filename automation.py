@@ -6,10 +6,10 @@ import requests
 from datetime import datetime
 
 # ── API Keys from GitHub Secrets ──────────────────────────────────────────────
-GOOGLE_API    = os.getenv("GOOGLE_BARD_API")
-CLAUDE_API    = os.getenv("CLAUDE_API")
+GOOGLE_API     = os.getenv("GOOGLE_BARD_API")
+CLAUDE_API     = os.getenv("CLAUDE_API")
 ELEVENLABS_API = os.getenv("ELEVENLABS_API")
-FREEPIK_API   = os.getenv("FREEPIK_API")
+FREEPIK_API    = os.getenv("FREEPIK_API")
 
 # ElevenLabs voice ID — "Adam" (male, calm & deep)
 ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
@@ -47,7 +47,6 @@ topic_res = requests.post(topic_url, json=topic_payload)
 topic_res.raise_for_status()
 raw_topic = topic_res.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
 
-# Strip accidental markdown fences
 if raw_topic.startswith("```"):
     raw_topic = raw_topic.split("```")[1]
     if raw_topic.startswith("json"):
@@ -125,16 +124,15 @@ with open(audio_path, "wb") as f:
 print(f"✓ Voiceover saved: {audio_path}")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 4 — Generate Video with Freepik AI
+# STEP 4 — Generate Background Image (Freepik)
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n4️⃣  Generating video with Freepik...")
+print("\n4️⃣  Generating background image with Freepik...")
 
 freepik_headers = {
     "x-freepik-api-key": FREEPIK_API,
     "Content-Type": "application/json"
 }
 
-# Generate a vertical AI image for the Short
 image_prompt = (
     f"Cinematic vertical 9:16 illustration representing: {topic_data['topic']}. "
     "Dark moody psychology aesthetic, neon blue and purple tones, "
@@ -161,7 +159,6 @@ img_res = requests.post(
 img_res.raise_for_status()
 img_data = img_res.json()
 
-# Download the generated image
 image_url = img_data["data"][0]["url"]
 img_file_res = requests.get(image_url)
 image_path = "background.jpg"
@@ -183,53 +180,7 @@ os.system(
 print(f"✓ Video created: {video_path}")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 6 — Upload to YouTube
+# STEP 6 — YouTube (Skipped for now)
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n6️⃣  Uploading to YouTube...")
-
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-
-youtube_creds_json = os.getenv("YOUTUBE_CREDENTIALS")
-creds_data = json.loads(youtube_creds_json)
-creds = Credentials(
-    token=creds_data["token"],
-    refresh_token=creds_data["refresh_token"],
-    token_uri="https://oauth2.googleapis.com/token",
-    client_id=creds_data["client_id"],
-    client_secret=creds_data["client_secret"]
-)
-
-youtube = build("youtube", "v3", credentials=creds)
-
-request_body = {
-    "snippet": {
-        "title": topic_data["title"],
-        "description": topic_data["description"] + "\n\n#psychology #shorts #facts #mindset",
-        "tags": ["psychology", "shorts", "facts", "mind", "brain", "science"],
-        "categoryId": "27"  # Education
-    },
-    "status": {
-        "privacyStatus": "public",
-        "selfDeclaredMadeForKids": False
-    }
-}
-
-media = MediaFileUpload(video_path, mimetype="video/mp4", resumable=True)
-upload = youtube.videos().insert(
-    part="snippet,status",
-    body=request_body,
-    media_body=media
-)
-
-response = None
-while response is None:
-    status, response = upload.next_chunk()
-    if status:
-        print(f"   Uploading... {int(status.progress() * 100)}%")
-
-print(f"✓ Video uploaded! ID: {response['id']}")
-print(f"✓ URL: https://youtube.com/shorts/{response['id']}")
-
-print("\n✅ ALL DONE! Psychology Short published successfully! 🎉")
+print("\n⏭️  YouTube upload skipped for now.")
+print("\n✅ ALL DONE! Video created successfully! 🎉")
