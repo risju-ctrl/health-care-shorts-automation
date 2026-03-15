@@ -5,13 +5,10 @@ import requests
 from datetime import datetime
 import urllib.parse
 
-# ── API Keys ──────────────────────────────────────────────────────────────────
 GROQ_API       = os.getenv("GROQ_API")
 ELEVENLABS_API = os.getenv("ELEVENLABS_API")
-
 ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
 
-# ── Check all keys exist ───────────────────────────────────────────────────────
 print("🔑 Checking API keys...")
 missing = []
 if not GROQ_API:       missing.append("GROQ_API")
@@ -36,7 +33,7 @@ print("\n1️⃣  Generating psychology topic...")
 
 try:
     topic_payload = {
-        "model": "llama3-8b-8192",
+        "model": "llama-3.3-70b-versatile",
         "max_tokens": 500,
         "messages": [
             {
@@ -99,7 +96,7 @@ print("\n2️⃣  Writing voiceover script...")
 
 try:
     script_payload = {
-        "model": "llama3-8b-8192",
+        "model": "llama-3.3-70b-versatile",
         "max_tokens": 500,
         "messages": [
             {
@@ -191,7 +188,7 @@ except Exception as e:
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 4 — Generate Background Image (Pollinations - FREE, no key needed)
+# STEP 4 — Generate Background Image (Pollinations - FREE)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n4️⃣  Generating background image with Pollinations...")
 
