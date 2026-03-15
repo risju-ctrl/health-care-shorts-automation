@@ -10,7 +10,6 @@ GROQ_API       = os.getenv("GROQ_API")
 ELEVENLABS_API = os.getenv("ELEVENLABS_API")
 ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
 
-# ── Check all keys ─────────────────────────────────────────────────────────────
 print("🔑 Checking API keys...")
 missing = []
 if not GROQ_API:       missing.append("GROQ_API")
@@ -43,7 +42,7 @@ try:
             "messages": [
                 {"role": "system", "content": "You are a JSON generator. Return ONLY raw JSON, no markdown, no code fences."},
                 {"role": "user", "content": (
-                    "Generate a unique, mind-blowing psychology fact for YouTube Shorts.\n"
+                    "Generate a unique mind-blowing psychology fact for YouTube Shorts.\n"
                     "Return ONLY this JSON:\n"
                     "{\n"
                     '  "topic": "short topic title",\n'
@@ -51,8 +50,7 @@ try:
                     '  "fact": "2 sentence psychology fact",\n'
                     '  "why_it_matters": "2 sentences why this matters",\n'
                     '  "title": "YouTube title under 60 chars",\n'
-                    '  "description": "YouTube description under 200 chars",\n'
-                    '  "image_prompt": "detailed cinematic image prompt for psychology visual, dark moody, neon purple blue, no text, no faces"\n'
+                    '  "description": "YouTube description under 200 chars"\n'
                     "}"
                 )}
             ]
@@ -91,11 +89,11 @@ try:
                     f"Fact: {topic['fact']}\n"
                     f"Why it matters: {topic['why_it_matters']}\n\n"
                     "Rules:\n"
-                    "- Open with the hook immediately — no intro\n"
+                    "- Open with the hook immediately\n"
                     "- Calm, deep, authoritative tone\n"
                     "- Short punchy sentences\n"
                     "- Build curiosity throughout\n"
-                    "- End with a powerful question that makes people think\n"
+                    "- End with a powerful question\n"
                     "- Exactly 120-140 words\n"
                     "- Return ONLY the script text"
                 )}
@@ -111,9 +109,34 @@ except Exception as e:
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 3 — Generate Voiceover (ElevenLabs)
+# STEP 3 — Save Script + Metadata as TXT files
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n3️⃣  Generating voiceover...")
+print("\n3️⃣  Saving script and metadata files...")
+
+try:
+    # Save voiceover script
+    with open("script.txt", "w") as f:
+        f.write(script)
+    print("✓ script.txt saved")
+
+    # Save full metadata
+    with open("metadata.txt", "w") as f:
+        f.write(f"TITLE:\n{topic['title']}\n\n")
+        f.write(f"DESCRIPTION:\n{topic['description']}\n\n")
+        f.write(f"TOPIC:\n{topic['topic']}\n\n")
+        f.write(f"HOOK:\n{topic['hook']}\n\n")
+        f.write(f"TAGS:\npsychology, shorts, facts, mind, brain, science\n\n")
+        f.write(f"SCRIPT:\n{script}\n")
+    print("✓ metadata.txt saved")
+
+except Exception as e:
+    print(f"❌ Step 3 failed: {e}")
+    exit(1)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STEP 4 — Generate Voiceover Audio (ElevenLabs)
+# ══════════════════════════════════════════════════════════════════════════════
+print("\n4️⃣  Generating voiceover...")
 
 try:
     el_res = requests.post(
@@ -137,24 +160,24 @@ try:
         exit(1)
     print(f"✓ Voiceover saved ({size} bytes)")
 except Exception as e:
-    print(f"❌ Step 3 failed: {e}")
+    print(f"❌ Step 4 failed: {e}")
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 4 — Generate Background Image (Pollinations with fallback)
+# STEP 5 — Generate Background Image (Pollinations with PIL fallback)
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n4️⃣  Generating background image...")
+print("\n5️⃣  Generating background image...")
 
 image_path = "background.jpg"
 image_success = False
 
-# Try Pollinations with multiple models
 models = ["turbo", "flux", "nanobanana"]
 for model in models:
     for attempt in range(2):
         try:
-            prompt_text = topic.get("image_prompt",
-                f"cinematic psychology illustration {topic['topic']} dark moody neon purple blue brain"
+            prompt_text = (
+                f"cinematic vertical psychology illustration {topic['topic']} "
+                "dark moody aesthetic neon blue purple brain mind ultra HD dramatic lighting no text no faces"
             )
             encoded = urllib.parse.quote(prompt_text)
             url = f"https://image.pollinations.ai/prompt/{encoded}?width=720&height=1280&model={model}&nologo=true&seed={int(time.time())}"
@@ -175,13 +198,12 @@ for model in models:
     if image_success:
         break
 
-# Fallback: Generate image with PIL if all APIs fail
 if not image_success:
-    print("   All image APIs failed — generating with PIL...")
+    print("   Generating with PIL fallback...")
     try:
         from PIL import Image, ImageDraw
         import random
-        random.seed(42)
+        random.seed(int(time.time()))
         img = Image.new('RGB', (720, 1280), (8, 4, 25))
         draw = ImageDraw.Draw(img)
         for y in range(1280):
@@ -189,10 +211,11 @@ if not image_success:
             g = int(4 + (y/1280)*8)
             b = int(25 + (y/1280)*55)
             draw.line([(0,y),(720,y)], fill=(r,g,b))
-        for _ in range(50):
+        for _ in range(60):
             x,y = random.randint(0,720), random.randint(0,1280)
-            r2 = random.randint(1,6)
-            draw.ellipse([x-r2,y-r2,x+r2,y+r2], fill=(random.randint(60,150), random.randint(20,80), random.randint(180,255)))
+            r2 = random.randint(1,8)
+            draw.ellipse([x-r2,y-r2,x+r2,y+r2],
+                fill=(random.randint(60,150), random.randint(20,80), random.randint(180,255)))
         img.save(image_path, quality=95)
         print(f"✓ Fallback image created ({os.path.getsize(image_path)} bytes)")
         image_success = True
@@ -201,9 +224,9 @@ if not image_success:
         exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 5 — Combine into Video (ffmpeg)
+# STEP 6 — Combine into Video (ffmpeg)
 # ══════════════════════════════════════════════════════════════════════════════
-print("\n5️⃣  Creating video...")
+print("\n6️⃣  Creating video...")
 
 try:
     result = os.system(
@@ -216,8 +239,13 @@ try:
         exit(1)
     print(f"✓ Video created ({os.path.getsize('short.mp4')} bytes)")
 except Exception as e:
-    print(f"❌ Step 5 failed: {e}")
+    print(f"❌ Step 6 failed: {e}")
     exit(1)
 
 print("\n⏭️  YouTube upload skipped for now.")
 print(f"\n✅ ALL DONE! '{topic['title']}' created successfully! 🎉")
+print(f"\n📄 Files created:")
+print(f"   - short.mp4     (video)")
+print(f"   - voiceover.mp3 (audio only)")
+print(f"   - script.txt    (voiceover script)")
+print(f"   - metadata.txt  (title, description, tags)")
