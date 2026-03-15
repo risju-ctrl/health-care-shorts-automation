@@ -27,6 +27,7 @@ jobs:
 
       - name: Run pipeline
         env:
+          GROQ_API:       ${{ secrets.GROQ_API }}
           CLAUDE_API:     ${{ secrets.CLAUDE_API }}
           ELEVENLABS_API: ${{ secrets.ELEVENLABS_API }}
           PEXELS_API:     ${{ secrets.PEXELS_API }}
