@@ -20,29 +20,46 @@ TARGET_DURATION = 58                         # seconds
 WORDS_PER_MIN   = 145                        # ElevenLabs pacing at default speed
 TARGET_WORDS    = int(TARGET_DURATION / 60 * WORDS_PER_MIN)   # ≈ 140 words
 
-CLAUDE_HEADERS = {
-    "x-api-key": CLAUDE_API,
-    "anthropic-version": "2023-06-01",
-    "Content-Type": "application/json",
-}
+# ──────────────────────────────────────────────
+# STARTUP VALIDATION
+# ──────────────────────────────────────────────
+
+missing = [name for name, val in [
+    ("CLAUDE_API", CLAUDE_API),
+    ("ELEVENLABS_API", ELEVENLABS_API),
+    ("PEXELS_API", PEXELS_API),
+] if not val]
+
+if missing:
+    print(f"[ERROR] Missing environment variables: {', '.join(missing)}")
+    print("  → Make sure these are set as GitHub repository secrets")
+    print("    and referenced in the workflow env: block.")
+    sys.exit(1)
 
 # ──────────────────────────────────────────────
 # HELPERS
 # ──────────────────────────────────────────────
 
 def claude(prompt: str, max_tokens: int = 1200) -> str:
-    """Single-turn Claude call. Raises on any non-200."""
+    """Single-turn Claude call. Headers built here so env is always live."""
+    headers = {
+        "x-api-key": CLAUDE_API,           # read at call-time, never at import
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+    }
     payload = {
-        "model": "claude-sonnet-4-20250514",
+        "model": "claude-sonnet-4-6",      # current model string (no date suffix)
         "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
     r = requests.post(
         "https://api.anthropic.com/v1/messages",
-        headers=CLAUDE_HEADERS,
+        headers=headers,
         json=payload,
         timeout=60,
     )
+    if not r.ok:
+        print(f"[ERROR] Claude API {r.status_code}: {r.text[:300]}")
     r.raise_for_status()
     data = r.json()
     return data["content"][0]["text"].strip()
