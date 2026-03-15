@@ -20,6 +20,11 @@ PEXELS_API     = os.getenv("PEXELS_API")
 
 USE_TRENDS     = os.getenv("USE_TRENDS", "1") == "1"
 
+# ── VOICE SELECTION ───────────────────────────────────────────────────────────
+# US Healthcare News & Explainers niche requires:
+# clear, trustworthy, calm American delivery.
+# The voice should sound like a smart explainer, not a dramatic narrator.
+# Best tone: simple, reassuring, useful, direct.
 VOICE_ID = "nPczCjzI2devNBz1zQrb"   # Brian
 ELEVENLABS_MODEL = "eleven_turbo_v2_5"
 
@@ -366,12 +371,7 @@ topic_source = selected_topic["source"]
 
 # ══════════════════════════════════════════════════════════
 # STEP 1 — COMPACT CONTENT PACK
-# One efficient LLM call:
-# - final title
-# - 2 alternate titles
-# - script
-# - thumbnail hook
-# - CTA
+# title + alt titles + thumbnail hook + cta + script
 # ══════════════════════════════════════════════════════════
 
 log("CONTENT", "Generating title + alt titles + script + thumbnail hook...")
@@ -400,6 +400,15 @@ Return ONLY valid JSON in this exact format:
   "cta": "...",
   "script": "..."
 }}
+
+HOOK PRIORITY:
+- the first sentence of the script must stop the scroll
+- strongest health hooks are:
+  1. warning signs people ignore
+  2. common mistakes Americans make
+  3. body signals that mean more than people think
+  4. medical cost misunderstandings
+  5. food or sleep habits with hidden effects
 
 RULES FOR TITLE:
 - {TITLE_MIN}-{TITLE_MAX} characters
@@ -489,7 +498,6 @@ script = str(content_data.get("script", "")).strip()
 script = strip_labels(script)
 script = health_safety_clean(script)
 
-# Title repair if needed
 if len(title) < TITLE_MIN or len(title) > TITLE_MAX:
     log("TITLE", f"Repairing title length ({len(title)})")
     repair_title_prompt = f"""
@@ -503,12 +511,10 @@ Return ONLY the final title.
 """
     title = llm(repair_title_prompt, max_tokens=70, step="TITLE", temperature=0.45).strip().strip('"\'').strip(".")
 
-# Alt titles cleanup
 if not isinstance(alt_titles, list):
     alt_titles = []
 alt_titles = [str(x).strip().strip('"\'').strip(".") for x in alt_titles[:2] if str(x).strip()]
 
-# CTA enforcement
 CTA_VARIANTS = [
     "Follow for simple health explainers like this.",
     "Save this so you remember it later.",
@@ -524,7 +530,6 @@ if not cta or not any(k in cta.lower() for k in CTA_KEYWORDS):
 if not any(k in script.lower() for k in CTA_KEYWORDS):
     script = script.rstrip() + " " + cta
 
-# Script repair for word count
 word_count = count_words(script)
 log("SCRIPT", f"Initial word count: {word_count}")
 
@@ -552,10 +557,12 @@ Return ONLY the rewritten script.
     script = strip_labels(script)
     script = health_safety_clean(script)
 
+if not any(k in script.lower() for k in CTA_KEYWORDS):
+    script = script.rstrip() + " " + cta
+
 word_count = count_words(script)
 log("SCRIPT", f"Final word count: {word_count}")
 
-# Ensure thumbnail hook exists
 if not thumbnail_hook or len(thumbnail_hook.split()) > 7:
     thumbnail_hook = "Signs people miss"
 
@@ -565,10 +572,10 @@ SCRIPT_FILE = f"{slug}_script.txt"
 VOICE_FILE = f"{slug}_voice.mp3"
 META_FILE = f"{slug}_metadata.txt"
 VISUAL_FILE = f"{slug}_visuals.txt"
+VIDEO_PROMPT_FILE = f"{slug}_video_prompts.txt"
 REPORT_FILE = f"{slug}_report.txt"
 DEBUG_FILE = f"{slug}_debug.json"
 
-# Save script
 with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
     f.write(f"TITLE: {title}\n")
     f.write(f"ALT TITLES: {', '.join(alt_titles) if alt_titles else 'N/A'}\n")
@@ -585,14 +592,7 @@ log("SCRIPT", f"{SCRIPT_FILE} saved")
 
 # ══════════════════════════════════════════════════════════
 # STEP 2 — METADATA + VISUAL PACK
-# One compact call:
-# - description
-# - hashtags
-# - tags
-# - upload time
-# - 5 scene breakdowns
-# - caption overlays
-# - pexels search keywords
+# description + hashtags + tags + upload time + 5 scenes
 # ══════════════════════════════════════════════════════════
 
 log("PACK", "Generating metadata + visuals pack...")
@@ -679,7 +679,6 @@ tags = pack_data.get("tags", [])
 suggested_upload_time = str(pack_data.get("suggested_upload_time", "Weekdays 6:00 PM ET")).strip()
 scene_plan = pack_data.get("scene_plan", [])
 
-# Normalize metadata
 if not isinstance(hashtags, list):
     hashtags = []
 if not isinstance(tags, list):
@@ -718,7 +717,6 @@ while len(tags) < 25:
         if len(tags) == 25:
             break
 
-# Save metadata file
 meta_text = f"""TITLE:
 {title}
 
@@ -744,7 +742,6 @@ THUMBNAIL HOOK:
 save_text(META_FILE, meta_text)
 log("META", f"{META_FILE} saved")
 
-# Save visuals file
 visual_lines = []
 visual_lines.append(f"TITLE: {title}")
 visual_lines.append(f"THUMBNAIL HOOK: {thumbnail_hook}")
@@ -768,8 +765,41 @@ save_text(VISUAL_FILE, "\n".join(visual_lines))
 log("VISUALS", f"{VISUAL_FILE} saved")
 
 # ══════════════════════════════════════════════════════════
+# STEP 2B — VIDEO PRODUCTION PROMPTS
+# scene-by-scene prompts for AI video tools / editors
+# ══════════════════════════════════════════════════════════
+
+video_prompt_lines = []
+video_prompt_lines.append(f"TITLE: {title}")
+video_prompt_lines.append(f"TOPIC: {_topic_name}")
+video_prompt_lines.append(f"THUMBNAIL HOOK: {thumbnail_hook}")
+video_prompt_lines.append("")
+video_prompt_lines.append("AI VIDEO PRODUCTION GUIDE")
+video_prompt_lines.append("")
+
+for scene in scene_plan[:5]:
+    num = scene.get("scene", "?")
+    voice_part = scene.get("voice_part", "")
+    visual_idea = scene.get("visual_idea", "")
+    caption_overlay = scene.get("caption_overlay", "")
+    pexels_keywords = scene.get("pexels_keywords", [])
+
+    video_prompt_lines.append(f"Scene {num}")
+    video_prompt_lines.append(f"Voice Purpose: {voice_part}")
+    video_prompt_lines.append(f"Best Visual Direction: {visual_idea}")
+    video_prompt_lines.append(
+        f"AI Video Prompt: Realistic vertical 9:16 healthcare explainer scene showing {visual_idea.lower()}, modern American setting, natural lighting, cinematic but realistic, subtle camera motion, highly detailed, clean composition"
+    )
+    video_prompt_lines.append(f"Stock Footage Prompt: {', '.join(pexels_keywords)}")
+    video_prompt_lines.append(f"On-Screen Text: {caption_overlay}")
+    video_prompt_lines.append("Edit Style: Fast Shorts pacing, bold readable captions, subtle zoom-ins, quick clean cuts, mobile-first framing")
+    video_prompt_lines.append("")
+
+save_text(VIDEO_PROMPT_FILE, "\n".join(video_prompt_lines))
+log("VIDEO", f"{VIDEO_PROMPT_FILE} saved")
+
+# ══════════════════════════════════════════════════════════
 # STEP 3 — OPTIONAL PEXELS LOOKUP
-# Lightweight search for first keyword of each scene
 # ══════════════════════════════════════════════════════════
 
 pexels_results = []
@@ -909,6 +939,7 @@ OUTPUT FILES:
   {VOICE_FILE}
   {META_FILE}
   {VISUAL_FILE}
+  {VIDEO_PROMPT_FILE}
   {REPORT_FILE}
   {DEBUG_FILE}
 
@@ -918,7 +949,7 @@ SCRIPT PREVIEW:
 
 save_text(REPORT_FILE, report)
 print("\n" + report + "\n")
-log("DONE", f"All files ready: {SCRIPT_FILE} | {VOICE_FILE} | {META_FILE} | {VISUAL_FILE} | {REPORT_FILE} | {DEBUG_FILE}")
+log("DONE", f"All files ready: {SCRIPT_FILE} | {VOICE_FILE} | {META_FILE} | {VISUAL_FILE} | {VIDEO_PROMPT_FILE} | {REPORT_FILE} | {DEBUG_FILE}")
 
 # ══════════════════════════════════════════════════════════
 # STEP 6 — MOVE TO OUTPUT FOLDER
@@ -927,7 +958,7 @@ log("DONE", f"All files ready: {SCRIPT_FILE} | {VOICE_FILE} | {META_FILE} | {VIS
 output_dir = f"output_{slug}"
 os.makedirs(output_dir, exist_ok=True)
 
-for f in [SCRIPT_FILE, VOICE_FILE, META_FILE, VISUAL_FILE, REPORT_FILE, DEBUG_FILE]:
+for f in [SCRIPT_FILE, VOICE_FILE, META_FILE, VISUAL_FILE, VIDEO_PROMPT_FILE, REPORT_FILE, DEBUG_FILE]:
     if os.path.exists(f):
         shutil.move(f, os.path.join(output_dir, os.path.basename(f)))
 
