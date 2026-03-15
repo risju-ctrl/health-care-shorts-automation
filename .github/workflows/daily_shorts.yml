@@ -37,8 +37,4 @@ jobs:
         with:
           name: psychology-short-${{ github.run_number }}
           retention-days: 14
-          path: |
-            *_script.txt
-            *_voice.mp3
-            *_metadata.txt
-            *_report.txt
+          path: output_*/
