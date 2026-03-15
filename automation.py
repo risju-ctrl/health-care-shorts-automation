@@ -4,7 +4,6 @@ import json
 import requests
 from datetime import datetime
 
-# ── API Keys from GitHub Secrets ──────────────────────────────────────────────
 CLAUDE_API     = os.getenv("CLAUDE_API")
 ELEVENLABS_API = os.getenv("ELEVENLABS_API")
 FREEPIK_API    = os.getenv("FREEPIK_API")
@@ -26,7 +25,7 @@ claude_headers = {
 print("\n1️⃣  Generating psychology topic...")
 
 topic_payload = {
-    "model": "claude-sonnet-4-20250514",
+    "model": "claude-haiku-4-5-20251001",
     "max_tokens": 500,
     "messages": [{
         "role": "user",
@@ -67,7 +66,7 @@ print(f"✓ Topic: {topic_data['topic']}")
 print("\n2️⃣  Writing voiceover script with Claude...")
 
 script_payload = {
-    "model": "claude-sonnet-4-20250514",
+    "model": "claude-haiku-4-5-20251001",
     "max_tokens": 500,
     "messages": [{
         "role": "user",
