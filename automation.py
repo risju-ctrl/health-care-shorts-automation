@@ -2,6 +2,7 @@
 import os
 import json
 import requests
+import time
 from datetime import datetime
 import urllib.parse
 
@@ -188,7 +189,7 @@ except Exception as e:
     exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 4 — Generate Background Image (Pollinations - FREE)
+# STEP 4 — Generate Background Image (Pollinations - FREE, with retry)
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n4️⃣  Generating background image with Pollinations...")
 
@@ -202,23 +203,23 @@ try:
 
     encoded_prompt = urllib.parse.quote(image_prompt)
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=720&height=1280&nologo=true"
-
-    print(f"   Fetching image from Pollinations...")
-    img_res = requests.get(image_url, timeout=60)
-
-    if img_res.status_code != 200:
-        print(f"❌ Pollinations error: {img_res.status_code}")
-        exit(1)
-
     image_path = "background.jpg"
-    with open(image_path, "wb") as f:
-        f.write(img_res.content)
 
-    if os.path.getsize(image_path) < 1000:
-        print("❌ Image file too small — something went wrong")
+    # Retry up to 3 times
+    for attempt in range(1, 4):
+        print(f"   Attempt {attempt}/3...")
+        img_res = requests.get(image_url, timeout=90)
+        if img_res.status_code == 200 and len(img_res.content) > 1000:
+            with open(image_path, "wb") as f:
+                f.write(img_res.content)
+            print(f"✓ Background image saved ({os.path.getsize(image_path)} bytes)")
+            break
+        else:
+            print(f"   Failed (status {img_res.status_code}), retrying in 10s...")
+            time.sleep(10)
+    else:
+        print("❌ Pollinations failed after 3 attempts")
         exit(1)
-
-    print(f"✓ Background image saved ({os.path.getsize(image_path)} bytes)")
 
 except requests.exceptions.Timeout:
     print("❌ Pollinations timed out")
