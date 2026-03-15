@@ -8,6 +8,7 @@ import requests
 import subprocess
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Optional, Tuple
+from gtts import gTTS
 
 # ══════════════════════════════════════════════════════════
 # CONFIG
@@ -163,6 +164,22 @@ def health_safety_clean(text: str) -> str:
     for pattern, repl in replacements:
         text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
     return text.strip()
+
+def get_audio_duration(path: str):
+    probe = subprocess.run(
+        [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            path
+        ],
+        capture_output=True,
+        text=True,
+    )
+    try:
+        return float(probe.stdout.strip())
+    except Exception:
+        return None
 
 # ══════════════════════════════════════════════════════════
 # EVERGREEN TOPICS
@@ -723,243 +740,3 @@ meta_text = f"""TITLE:
 ALT TITLES:
 {alt_titles[0] if len(alt_titles) > 0 else "N/A"}
 {alt_titles[1] if len(alt_titles) > 1 else "N/A"}
-
-DESCRIPTION:
-{description}
-
-HASHTAGS:
-{" ".join(hashtags)}
-
-TAGS:
-{", ".join(tags)}
-
-SUGGESTED UPLOAD TIME:
-{suggested_upload_time}
-
-THUMBNAIL HOOK:
-{thumbnail_hook}
-"""
-save_text(META_FILE, meta_text)
-log("META", f"{META_FILE} saved")
-
-visual_lines = []
-visual_lines.append(f"TITLE: {title}")
-visual_lines.append(f"THUMBNAIL HOOK: {thumbnail_hook}")
-visual_lines.append("")
-visual_lines.append("SCENE PLAN:")
-
-for scene in scene_plan[:5]:
-    num = scene.get("scene", "?")
-    voice_part = scene.get("voice_part", "")
-    visual_idea = scene.get("visual_idea", "")
-    caption_overlay = scene.get("caption_overlay", "")
-    pexels_keywords = scene.get("pexels_keywords", [])
-
-    visual_lines.append(f"\nScene {num}")
-    visual_lines.append(f"Voice Part: {voice_part}")
-    visual_lines.append(f"Visual Idea: {visual_idea}")
-    visual_lines.append(f"Caption Overlay: {caption_overlay}")
-    visual_lines.append(f"Pexels Keywords: {', '.join(pexels_keywords)}")
-
-save_text(VISUAL_FILE, "\n".join(visual_lines))
-log("VISUALS", f"{VISUAL_FILE} saved")
-
-# ══════════════════════════════════════════════════════════
-# STEP 2B — VIDEO PRODUCTION PROMPTS
-# scene-by-scene prompts for AI video tools / editors
-# ══════════════════════════════════════════════════════════
-
-video_prompt_lines = []
-video_prompt_lines.append(f"TITLE: {title}")
-video_prompt_lines.append(f"TOPIC: {_topic_name}")
-video_prompt_lines.append(f"THUMBNAIL HOOK: {thumbnail_hook}")
-video_prompt_lines.append("")
-video_prompt_lines.append("AI VIDEO PRODUCTION GUIDE")
-video_prompt_lines.append("")
-
-for scene in scene_plan[:5]:
-    num = scene.get("scene", "?")
-    voice_part = scene.get("voice_part", "")
-    visual_idea = scene.get("visual_idea", "")
-    caption_overlay = scene.get("caption_overlay", "")
-    pexels_keywords = scene.get("pexels_keywords", [])
-
-    video_prompt_lines.append(f"Scene {num}")
-    video_prompt_lines.append(f"Voice Purpose: {voice_part}")
-    video_prompt_lines.append(f"Best Visual Direction: {visual_idea}")
-    video_prompt_lines.append(
-        f"AI Video Prompt: Realistic vertical 9:16 healthcare explainer scene showing {visual_idea.lower()}, modern American setting, natural lighting, cinematic but realistic, subtle camera motion, highly detailed, clean composition"
-    )
-    video_prompt_lines.append(f"Stock Footage Prompt: {', '.join(pexels_keywords)}")
-    video_prompt_lines.append(f"On-Screen Text: {caption_overlay}")
-    video_prompt_lines.append("Edit Style: Fast Shorts pacing, bold readable captions, subtle zoom-ins, quick clean cuts, mobile-first framing")
-    video_prompt_lines.append("")
-
-save_text(VIDEO_PROMPT_FILE, "\n".join(video_prompt_lines))
-log("VIDEO", f"{VIDEO_PROMPT_FILE} saved")
-
-# ══════════════════════════════════════════════════════════
-# STEP 3 — OPTIONAL PEXELS LOOKUP
-# ══════════════════════════════════════════════════════════
-
-pexels_results = []
-
-def pexels_search(query: str, per_page: int = 3) -> List[Dict]:
-    if not PEXELS_API:
-        return []
-    try:
-        r = requests.get(
-            "https://api.pexels.com/videos/search",
-            headers={"Authorization": PEXELS_API},
-            params={"query": query, "per_page": per_page},
-            timeout=30,
-        )
-        r.raise_for_status()
-        return r.json().get("videos", [])
-    except Exception as e:
-        log("PEXELS", f"Search failed for '{query}': {e}")
-        return []
-
-if PEXELS_API and scene_plan:
-    log("PEXELS", "Searching stock footage ideas...")
-    for scene in scene_plan[:5]:
-        keywords = scene.get("pexels_keywords", [])
-        if keywords:
-            query = keywords[0]
-            results = pexels_search(query, per_page=2)
-            pexels_results.append({
-                "scene": scene.get("scene"),
-                "query": query,
-                "results_found": len(results),
-                "video_urls": [v.get("url") for v in results[:2] if v.get("url")]
-            })
-
-# ══════════════════════════════════════════════════════════
-# STEP 4 — VOICE
-# ══════════════════════════════════════════════════════════
-
-log("VOICE", "Generating audio...")
-
-voice_payload = {
-    "text": script,
-    "model_id": ELEVENLABS_MODEL,
-    "voice_settings": {
-        "stability": 0.45,
-        "similarity_boost": 0.78,
-        "style": 0.22,
-        "use_speaker_boost": True,
-    },
-}
-
-voice_res = requests.post(
-    f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}",
-    headers={
-        "xi-api-key": ELEVENLABS_API,
-        "Content-Type": "application/json"
-    },
-    json=voice_payload,
-    timeout=90,
-)
-
-if not voice_res.ok:
-    log("ERROR", f"ElevenLabs {voice_res.status_code}: {voice_res.text[:300]}")
-    sys.exit(1)
-
-with open(VOICE_FILE, "wb") as f:
-    f.write(voice_res.content)
-
-if os.path.getsize(VOICE_FILE) < MIN_AUDIO_FILESIZE:
-    log("ERROR", f"{VOICE_FILE} is suspiciously small")
-    sys.exit(1)
-
-probe = subprocess.run(
-    [
-        "ffprobe", "-v", "error",
-        "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
-        VOICE_FILE
-    ],
-    capture_output=True,
-    text=True,
-)
-
-try:
-    actual_duration = float(probe.stdout.strip())
-    log("VOICE", f"{VOICE_FILE} saved — {actual_duration:.1f}s | {os.path.getsize(VOICE_FILE)//1024}KB")
-except Exception:
-    actual_duration = None
-    log("VOICE", f"{VOICE_FILE} saved — duration unknown")
-
-# ══════════════════════════════════════════════════════════
-# STEP 5 — DEBUG + REPORT
-# ══════════════════════════════════════════════════════════
-
-debug_payload = {
-    "selected_topic": selected_topic,
-    "considered_trends": considered_trends,
-    "title": title,
-    "alt_titles": alt_titles,
-    "thumbnail_hook": thumbnail_hook,
-    "cta": cta,
-    "word_count": word_count,
-    "audio_duration": actual_duration,
-    "scene_plan": scene_plan,
-    "pexels_results": pexels_results,
-}
-
-save_text(DEBUG_FILE, json.dumps(debug_payload, indent=2))
-log("DEBUG", f"{DEBUG_FILE} saved")
-
-duration_str = f"{actual_duration:.1f}s" if actual_duration else "unknown"
-
-report = f"""
-╔══════════════════════════════════════════════════════╗
-║   FREE-TIER HEALTHCARE SHORTS — RUN REPORT          ║
-╚══════════════════════════════════════════════════════╝
-
-TITLE:        {title}
-ALT TITLES:   {alt_titles}
-TOPIC:        {_topic_name}
-ANGLE:        {_topic_angle}
-SOURCE:       {topic_source}
-HOOK TYPE:    {_topic_hook_type}
-WORD COUNT:   {word_count} words  (target: {TARGET_WORDS})
-AUDIO:        {duration_str}
-VOICE ID:     {VOICE_ID}
-MODEL:        {ELEVENLABS_MODEL}
-
-THUMBNAIL HOOK:
-  {thumbnail_hook}
-
-SUGGESTED UPLOAD TIME:
-  {suggested_upload_time}
-
-OUTPUT FILES:
-  {SCRIPT_FILE}
-  {VOICE_FILE}
-  {META_FILE}
-  {VISUAL_FILE}
-  {VIDEO_PROMPT_FILE}
-  {REPORT_FILE}
-  {DEBUG_FILE}
-
-SCRIPT PREVIEW:
-{". ".join(script.split(". ")[:3])}.
-""".strip()
-
-save_text(REPORT_FILE, report)
-print("\n" + report + "\n")
-log("DONE", f"All files ready: {SCRIPT_FILE} | {VOICE_FILE} | {META_FILE} | {VISUAL_FILE} | {VIDEO_PROMPT_FILE} | {REPORT_FILE} | {DEBUG_FILE}")
-
-# ══════════════════════════════════════════════════════════
-# STEP 6 — MOVE TO OUTPUT FOLDER
-# ══════════════════════════════════════════════════════════
-
-output_dir = f"output_{slug}"
-os.makedirs(output_dir, exist_ok=True)
-
-for f in [SCRIPT_FILE, VOICE_FILE, META_FILE, VISUAL_FILE, VIDEO_PROMPT_FILE, REPORT_FILE, DEBUG_FILE]:
-    if os.path.exists(f):
-        shutil.move(f, os.path.join(output_dir, os.path.basename(f)))
-
-log("DONE", f"All files moved to folder: {output_dir}/")
