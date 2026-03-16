@@ -29,64 +29,90 @@ TITLE_MAX = 58
 MIN_AUDIO_FILESIZE = 10_000
 
 # ══════════════════════════════════════════════════════════
-# FREE-TIER PREMADE MALE VOICES
-# ElevenLabs free API generally supports premade/default voices.
-# We explicitly map hook types to actual male voices instead of
-# using one resolved voice for everything.
+# JOSH — TEACHER FOR KIDS (UNIVERSAL VOICE)
+# Voice ID: TxGEqnHWrfWFTfGW9XjX
+# All hook types use Josh with a warm, clear, teacher-for-kids tone.
 # ══════════════════════════════════════════════════════════
 
+JOSH_VOICE_ID = "TxGEqnHWrfWFTfGW9XjX"
+JOSH_VOICE_LABEL = "Josh - teacher for kids"
+
+JOSH_TONE = (
+    "warm, clear, and patient — speak like a trusted teacher explaining something "
+    "important to kids in simple words. Never rush. Keep it friendly and easy to follow."
+)
+
+JOSH_BASE_SETTINGS = {
+    "stability": 0.62,
+    "similarity_boost": 0.80,
+    "style": 0.22,
+    "use_speaker_boost": True,
+}
+
+# Per-hook tuning — subtle adjustments around the base
+JOSH_HOOK_SETTINGS = {
+    "warning":  {"stability": 0.58, "similarity_boost": 0.80, "style": 0.28, "use_speaker_boost": True},
+    "symptom":  {"stability": 0.64, "similarity_boost": 0.80, "style": 0.18, "use_speaker_boost": True},
+    "habit":    {"stability": 0.60, "similarity_boost": 0.80, "style": 0.24, "use_speaker_boost": True},
+    "cost":     {"stability": 0.66, "similarity_boost": 0.80, "style": 0.18, "use_speaker_boost": True},
+    "myth":     {"stability": 0.62, "similarity_boost": 0.80, "style": 0.22, "use_speaker_boost": True},
+    "news":     {"stability": 0.60, "similarity_boost": 0.80, "style": 0.26, "use_speaker_boost": True},
+}
+
+# Fallback chain — all still Josh first, then other male voices as last resort
 FREE_MALE_VOICE_FALLBACKS = [
+    ("TxGEqnHWrfWFTfGW9XjX", "Josh - teacher for kids"),
     ("bIHbv24MWmeRgasZH58o", "Will - young American social media"),
     ("SOYHLrjzK2X1ezoPC9cr", "Harry - young enthusiastic"),
-    ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
     ("VR6AewLTigWG4xSOukaG", "Arnold - strong confident"),
     ("pNInz6obpgDQGcFmaJgB", "Adam - deep authoritative"),
 ]
 
+# All hook types point to Josh
 VOICE_BY_HOOK = {
-    "warning": ("VR6AewLTigWG4xSOukaG", "Arnold - strong confident"),
-    "symptom": ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
-    "habit": ("bIHbv24MWmeRgasZH58o", "Will - young American social media"),
-    "cost": ("pNInz6obpgDQGcFmaJgB", "Adam - deep authoritative"),
-    "myth": ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
-    "news": ("SOYHLrjzK2X1ezoPC9cr", "Harry - young enthusiastic"),
+    "warning": (JOSH_VOICE_ID, JOSH_VOICE_LABEL),
+    "symptom": (JOSH_VOICE_ID, JOSH_VOICE_LABEL),
+    "habit":   (JOSH_VOICE_ID, JOSH_VOICE_LABEL),
+    "cost":    (JOSH_VOICE_ID, JOSH_VOICE_LABEL),
+    "myth":    (JOSH_VOICE_ID, JOSH_VOICE_LABEL),
+    "news":    (JOSH_VOICE_ID, JOSH_VOICE_LABEL),
 }
 
 HOOK_FALLBACKS = {
     "warning": [
+        (JOSH_VOICE_ID, JOSH_VOICE_LABEL),
         ("VR6AewLTigWG4xSOukaG", "Arnold - strong confident"),
         ("pNInz6obpgDQGcFmaJgB", "Adam - deep authoritative"),
-        ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
     ],
     "symptom": [
-        ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
+        (JOSH_VOICE_ID, JOSH_VOICE_LABEL),
         ("SOYHLrjzK2X1ezoPC9cr", "Harry - young enthusiastic"),
         ("bIHbv24MWmeRgasZH58o", "Will - young American social media"),
     ],
     "habit": [
+        (JOSH_VOICE_ID, JOSH_VOICE_LABEL),
         ("bIHbv24MWmeRgasZH58o", "Will - young American social media"),
         ("SOYHLrjzK2X1ezoPC9cr", "Harry - young enthusiastic"),
-        ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
     ],
     "cost": [
+        (JOSH_VOICE_ID, JOSH_VOICE_LABEL),
         ("pNInz6obpgDQGcFmaJgB", "Adam - deep authoritative"),
-        ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
         ("VR6AewLTigWG4xSOukaG", "Arnold - strong confident"),
     ],
     "myth": [
-        ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
+        (JOSH_VOICE_ID, JOSH_VOICE_LABEL),
         ("pNInz6obpgDQGcFmaJgB", "Adam - deep authoritative"),
         ("bIHbv24MWmeRgasZH58o", "Will - young American social media"),
     ],
     "news": [
+        (JOSH_VOICE_ID, JOSH_VOICE_LABEL),
         ("SOYHLrjzK2X1ezoPC9cr", "Harry - young enthusiastic"),
         ("bIHbv24MWmeRgasZH58o", "Will - young American social media"),
-        ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
     ],
 }
 
-DEFAULT_VOICE_ID = "bIHbv24MWmeRgasZH58o"
-DEFAULT_VOICE_LABEL = "Will - young American social media"
+DEFAULT_VOICE_ID = JOSH_VOICE_ID
+DEFAULT_VOICE_LABEL = JOSH_VOICE_LABEL
 
 def _make_profile(voice_id: str, label_prefix: str, tone: str, stability: float, style: float) -> Dict:
     return {
@@ -101,43 +127,14 @@ def _make_profile(voice_id: str, label_prefix: str, tone: str, stability: float,
         },
     }
 
+# All profiles use Josh with the teacher-for-kids tone; stability/style are tuned per hook
 VOICE_PROFILES = {
-    "warning": _make_profile(
-        VOICE_BY_HOOK["warning"][0],
-        VOICE_BY_HOOK["warning"][1],
-        "urgent, gripping, serious — speak like someone warning a friend about something they must not ignore",
-        stability=0.42, style=0.48,
-    ),
-    "symptom": _make_profile(
-        VOICE_BY_HOOK["symptom"][0],
-        VOICE_BY_HOOK["symptom"][1],
-        "calm and authoritative — speak clearly like a knowledgeable friend explaining a health symptom without alarm",
-        stability=0.60, style=0.18,
-    ),
-    "habit": _make_profile(
-        VOICE_BY_HOOK["habit"][0],
-        VOICE_BY_HOOK["habit"][1],
-        "persuasive and motivating — speak like a coach who genuinely wants the listener to make a positive change today",
-        stability=0.44, style=0.46,
-    ),
-    "cost": _make_profile(
-        VOICE_BY_HOOK["cost"][0],
-        VOICE_BY_HOOK["cost"][1],
-        "trustworthy and persuasive — speak like someone who just figured out the system and wants to save you money",
-        stability=0.66, style=0.20,
-    ),
-    "myth": _make_profile(
-        VOICE_BY_HOOK["myth"][0],
-        VOICE_BY_HOOK["myth"][1],
-        "confident and convincing — speak like someone who just learned the real truth and can't believe others don't know it yet",
-        stability=0.50, style=0.38,
-    ),
-    "news": _make_profile(
-        VOICE_BY_HOOK["news"][0],
-        VOICE_BY_HOOK["news"][1],
-        "engaging and conversational — speak like you're sharing genuinely interesting health news with a friend over coffee",
-        stability=0.48, style=0.34,
-    ),
+    "warning": _make_profile(JOSH_VOICE_ID, JOSH_VOICE_LABEL, JOSH_TONE, stability=0.58, style=0.28),
+    "symptom": _make_profile(JOSH_VOICE_ID, JOSH_VOICE_LABEL, JOSH_TONE, stability=0.64, style=0.18),
+    "habit":   _make_profile(JOSH_VOICE_ID, JOSH_VOICE_LABEL, JOSH_TONE, stability=0.60, style=0.24),
+    "cost":    _make_profile(JOSH_VOICE_ID, JOSH_VOICE_LABEL, JOSH_TONE, stability=0.66, style=0.18),
+    "myth":    _make_profile(JOSH_VOICE_ID, JOSH_VOICE_LABEL, JOSH_TONE, stability=0.62, style=0.22),
+    "news":    _make_profile(JOSH_VOICE_ID, JOSH_VOICE_LABEL, JOSH_TONE, stability=0.60, style=0.26),
 }
 
 # ══════════════════════════════════════════════════════════
@@ -163,7 +160,7 @@ if missing:
         log("ERROR", f"  • {m}")
     sys.exit(1)
 
-log("CONFIG", f"Default voice fallback: {DEFAULT_VOICE_LABEL} ({DEFAULT_VOICE_ID}) | Model: {ELEVENLABS_MODEL} | Target: {TARGET_WORDS} words")
+log("CONFIG", f"Universal voice: {DEFAULT_VOICE_LABEL} ({DEFAULT_VOICE_ID}) | Model: {ELEVENLABS_MODEL} | Target: {TARGET_WORDS} words")
 log("CONFIG", f"Use Trends: {USE_TRENDS} | Claude fallback: {'yes' if CLAUDE_API else 'no'} | Pexels: {'yes' if PEXELS_API else 'no'}")
 
 # ══════════════════════════════════════════════════════════
@@ -337,22 +334,10 @@ def choose_cta(hook_type: str) -> str:
     return random.choice(ctas.get((hook_type or "").lower(), fallback))
 
 def select_voice_profile(hook_type: str, topic_name: str = "", angle: str = "") -> Dict:
+    """Always returns Josh - teacher for kids. Hook type only influences subtle settings."""
     hook_type = (hook_type or "").strip().lower()
-
     if hook_type in VOICE_PROFILES:
         return VOICE_PROFILES[hook_type]
-
-    combined = f"{topic_name} {angle}".lower()
-
-    if any(x in combined for x in ["stroke", "heart attack", "emergency", "warning", "danger"]):
-        return VOICE_PROFILES["warning"]
-    if any(x in combined for x in ["insurance", "deductible", "bill", "debt", "cost"]):
-        return VOICE_PROFILES["cost"]
-    if any(x in combined for x in ["sleep", "walking", "food", "nutrition", "hydration", "habit"]):
-        return VOICE_PROFILES["habit"]
-    if any(x in combined for x in ["symptom", "fatigue", "tired", "prediabetes", "dehydration"]):
-        return VOICE_PROFILES["symptom"]
-
     return VOICE_PROFILES["news"]
 
 # ══════════════════════════════════════════════════════════
@@ -560,30 +545,12 @@ _topic_scene = selected_topic["scene_context"]
 _topic_hook_type = selected_topic["hook_type"]
 topic_source = selected_topic["source"]
 
+# Always Josh — profile lookup still returns Josh for all hook types
 selected_voice = select_voice_profile(_topic_hook_type, _topic_name, _topic_angle)
-VOICE_ID = selected_voice["voice_id"]
-VOICE_LABEL = selected_voice["label"]
-VOICE_SETTINGS = selected_voice["settings"].copy()
-TONE_INSTRUCTION = selected_voice.get("tone_instruction", "engaging and persuasive")
-
-if _topic_hook_type == "warning":
-    VOICE_SETTINGS["stability"] = 0.38
-    VOICE_SETTINGS["style"] = 0.50
-elif _topic_hook_type == "symptom":
-    VOICE_SETTINGS["stability"] = 0.62
-    VOICE_SETTINGS["style"] = 0.18
-elif _topic_hook_type == "cost":
-    VOICE_SETTINGS["stability"] = 0.68
-    VOICE_SETTINGS["style"] = 0.20
-elif _topic_hook_type == "habit":
-    VOICE_SETTINGS["stability"] = 0.44
-    VOICE_SETTINGS["style"] = 0.48
-elif _topic_hook_type == "myth":
-    VOICE_SETTINGS["stability"] = 0.50
-    VOICE_SETTINGS["style"] = 0.40
-elif _topic_hook_type == "news":
-    VOICE_SETTINGS["stability"] = 0.48
-    VOICE_SETTINGS["style"] = 0.36
+VOICE_ID = JOSH_VOICE_ID
+VOICE_LABEL = JOSH_VOICE_LABEL
+VOICE_SETTINGS = JOSH_HOOK_SETTINGS.get(_topic_hook_type, JOSH_BASE_SETTINGS).copy()
+TONE_INSTRUCTION = JOSH_TONE
 
 log("CONFIG", f"Selected voice: {VOICE_LABEL} | Voice ID: {VOICE_ID}")
 log("CONFIG", f"Tone: {TONE_INSTRUCTION}")
@@ -605,10 +572,11 @@ HOOK TYPE: {_topic_hook_type}
 SOURCE: {topic_source}
 
 VOICE TONE FOR THIS VIDEO:
-The voiceover will be delivered by a male voice matched to the topic.
+The voiceover will be delivered by Josh, a warm and patient male voice speaking like a teacher for kids.
 Tone instruction: {TONE_INSTRUCTION}
-Write the script to match this tone. The writing itself should feel natural when spoken aloud
-by a confident, relatable young man. Sentence rhythm matters — keep sentences short and punchy.
+Write the script to match this tone exactly. Simple words. Short sentences. Clear and friendly.
+The writing should feel like a kind teacher explaining something important in a way any kid could understand.
+Sentence rhythm matters — keep sentences short and easy to follow.
 
 AUDIENCE:
 Americans 18-44 who care about health symptoms, nutrition, prevention,
@@ -662,8 +630,8 @@ RULES FOR CTA:
 RULES FOR SCRIPT:
 - exactly 150 words
 - 55 to 60 second spoken flow
-- plain American English
-- clear, useful, and written for this tone: {TONE_INSTRUCTION}
+- plain American English — words a 10-year-old would understand
+- clear, friendly, and written for this tone: {TONE_INSTRUCTION}
 - 6th to 8th grade reading level
 - short punchy sentences that sound natural out loud
 - no diagnosing
@@ -765,14 +733,14 @@ TONE: {TONE_INSTRUCTION}
 
 RULES:
 - exact word count: {TARGET_WORDS}
-- plain American English
+- plain American English — words a 10-year-old would understand
 - strong first 2 sentences
 - trustworthy and useful
 - no diagnosis
 - no fearbait
 - natural spoken pacing
 - short punchy sentences that sound natural out loud
-- written for a confident young male voice
+- written like a warm teacher explaining something clearly to kids
 - keep the same topic and CTA style
 
 Return ONLY the rewritten script.
@@ -1093,6 +1061,7 @@ def _try_elevenlabs_voice(vid: str, label: str, settings: Dict) -> bool:
         log("VOICE", f"Exception for {label} ({vid}): {e}")
         return False
 
+# Build fallback chain — Josh first, then topic-specific fallbacks, then full free list
 topic_fallbacks = HOOK_FALLBACKS.get(_topic_hook_type, FREE_MALE_VOICE_FALLBACKS)
 
 seen = set()
@@ -1104,25 +1073,24 @@ for vid, lbl in [(VOICE_ID, VOICE_LABEL)] + topic_fallbacks + FREE_MALE_VOICE_FA
 
 elevenlabs_ok = False
 for _vid, _lbl in voices_to_try:
-    current_settings = VOICE_SETTINGS.copy()
-
-    if _vid == "VR6AewLTigWG4xSOukaG":  # Arnold
-        current_settings["stability"] = 0.45 if _topic_hook_type == "warning" else 0.55
-        current_settings["style"] = 0.44 if _topic_hook_type == "warning" else 0.28
+    # Use Josh settings for Josh; fall back to sensible defaults for others
+    if _vid == JOSH_VOICE_ID:
+        current_settings = JOSH_HOOK_SETTINGS.get(_topic_hook_type, JOSH_BASE_SETTINGS).copy()
+    elif _vid == "VR6AewLTigWG4xSOukaG":  # Arnold
+        current_settings = {"stability": 0.45 if _topic_hook_type == "warning" else 0.55,
+                            "similarity_boost": 0.80,
+                            "style": 0.44 if _topic_hook_type == "warning" else 0.28,
+                            "use_speaker_boost": True}
     elif _vid == "pNInz6obpgDQGcFmaJgB":  # Adam
-        current_settings["stability"] = 0.68
-        current_settings["style"] = 0.20
-    elif _vid == "TxGEqnHWrfWFTfGW9XjX":  # Josh
-        current_settings["stability"] = 0.60
-        current_settings["style"] = 0.22
+        current_settings = {"stability": 0.68, "similarity_boost": 0.80, "style": 0.20, "use_speaker_boost": True}
     elif _vid == "SOYHLrjzK2X1ezoPC9cr":  # Harry
-        current_settings["stability"] = 0.46
-        current_settings["style"] = 0.38
+        current_settings = {"stability": 0.46, "similarity_boost": 0.80, "style": 0.38, "use_speaker_boost": True}
     elif _vid == "bIHbv24MWmeRgasZH58o":  # Will
-        current_settings["stability"] = 0.44
-        current_settings["style"] = 0.46
+        current_settings = {"stability": 0.44, "similarity_boost": 0.80, "style": 0.46, "use_speaker_boost": True}
+    else:
+        current_settings = VOICE_SETTINGS.copy()
 
-    log("VOICE", f"Trying { _lbl } ({ _vid }) with settings {current_settings}")
+    log("VOICE", f"Trying {_lbl} ({_vid}) with settings {current_settings}")
 
     if _try_elevenlabs_voice(_vid, _lbl, current_settings):
         elevenlabs_ok = True
