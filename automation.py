@@ -21,7 +21,8 @@ PEXELS_API = os.getenv("PEXELS_API")
 
 USE_TRENDS = os.getenv("USE_TRENDS", "1") == "1"
 
-# ── Target: young male voice (Alex-style) on free tier ──
+# ── Charlie — free-tier premade male voice, energetic young tone ──
+DEFAULT_VOICE_ID = "IKne3meq5aSn9XLyUdCD"  # Charlie (premade, free API access)
 ELEVENLABS_MODEL = "eleven_turbo_v2_5"
 
 TARGET_WORDS = 150
@@ -165,7 +166,7 @@ VOICE_PROFILES = {
     ),
 }
 
-DEFAULT_VOICE_ID = _PLACEHOLDER_ID  # patched after validation
+DEFAULT_VOICE_ID = "IKne3meq5aSn9XLyUdCD"  # Charlie
 
 # ══════════════════════════════════════════════════════════
 # LOGGING
@@ -192,7 +193,7 @@ if missing:
 
 # ── Resolve voice AFTER validation so ELEVENLABS_API is guaranteed set ──
 _RESOLVED_VOICE_ID, _RESOLVED_VOICE_LABEL = discover_best_male_voice(ELEVENLABS_API)
-DEFAULT_VOICE_ID = _RESOLVED_VOICE_ID
+DEFAULT_VOICE_ID = "IKne3meq5aSn9XLyUdCD"  # Charlie
 VOICE_PROFILES.update({
     k: _make_profile(
         _RESOLVED_VOICE_ID,
