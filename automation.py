@@ -34,7 +34,7 @@ MIN_AUDIO_FILESIZE = 10_000
 # All hook types use Josh with a warm, clear, teacher-for-kids tone.
 # ══════════════════════════════════════════════════════════
 
-JOSH_VOICE_ID = "TxGEqnHWrfWFTfGW9XjX"
+JOSH_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
 JOSH_VOICE_LABEL = "Josh - teacher for kids"
 
 JOSH_TONE = (
