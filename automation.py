@@ -21,8 +21,6 @@ PEXELS_API = os.getenv("PEXELS_API")
 
 USE_TRENDS = os.getenv("USE_TRENDS", "1") == "1"
 
-# ── Will — free-tier premade male voice, energetic young tone ──
-DEFAULT_VOICE_ID = "bIHbv24MWmeRgasZH58o"  # Will - young American male, social media (premade, free API access)
 ELEVENLABS_MODEL = "eleven_turbo_v2_5"
 
 TARGET_WORDS = 150
@@ -31,26 +29,12 @@ TITLE_MAX = 58
 MIN_AUDIO_FILESIZE = 10_000
 
 # ══════════════════════════════════════════════════════════
-# FREE-TIER PREMADE VOICE DISCOVERY
-#
-# ElevenLabs free plans CANNOT use library/community voices
-# via the API — only "premade" (default) voices are allowed.
-#
-# Strategy:
-#   1. At startup, call /v1/voices to fetch all voices on the
-#      account and find the best young male premade voice.
-#   2. Fall back through a priority list of known free-tier
-#      premade male voice IDs if discovery fails.
-#
-# Known free-tier premade male voices (as of 2024):
-#   Will  → bIHbv24MWmeRgasZH58o  (young, casual, energetic)
-#   Adam     → pNInz6obpgDQGcFmaJgB  (deep, authoritative)
-#   Josh     → TxGEqnHWrfWFTfGW9XjX  (warm, trustworthy)
-#   Arnold   → VR6AewLTigWG4xSOukaG  (strong, confident)
-#   Harry    → SOYHLrjzK2X1ezoPC9cr  (young, enthusiastic)
+# FREE-TIER PREMADE MALE VOICES
+# ElevenLabs free API generally supports premade/default voices.
+# We explicitly map hook types to actual male voices instead of
+# using one resolved voice for everything.
 # ══════════════════════════════════════════════════════════
 
-# Priority-ordered fallback list — first one that works wins
 FREE_MALE_VOICE_FALLBACKS = [
     ("bIHbv24MWmeRgasZH58o", "Will - young American social media"),
     ("SOYHLrjzK2X1ezoPC9cr", "Harry - young enthusiastic"),
@@ -59,52 +43,50 @@ FREE_MALE_VOICE_FALLBACKS = [
     ("pNInz6obpgDQGcFmaJgB", "Adam - deep authoritative"),
 ]
 
-def discover_best_male_voice(api_key: str) -> tuple:
-    """
-    Calls /v1/voices to list all premade voices on the account.
-    Looks for young male voices by name/label.
-    Returns (voice_id, label). Falls back to FREE_MALE_VOICE_FALLBACKS.
-    Uses print() directly — safe to call before log() is defined.
-    """
-    preferred_names = ["charlie", "harry", "josh", "arnold", "adam", "liam", "daniel", "sam"]
-    try:
-        r = requests.get(
-            "https://api.elevenlabs.io/v1/voices",
-            headers={"xi-api-key": api_key},
-            timeout=20,
-        )
-        r.raise_for_status()
-        voices = r.json().get("voices", [])
-        premade = [v for v in voices if v.get("category") in ("premade", "default")]
+VOICE_BY_HOOK = {
+    "warning": ("VR6AewLTigWG4xSOukaG", "Arnold - strong confident"),
+    "symptom": ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
+    "habit": ("bIHbv24MWmeRgasZH58o", "Will - young American social media"),
+    "cost": ("pNInz6obpgDQGcFmaJgB", "Adam - deep authoritative"),
+    "myth": ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
+    "news": ("SOYHLrjzK2X1ezoPC9cr", "Harry - young enthusiastic"),
+}
 
-        for name in preferred_names:
-            for v in premade:
-                if v.get("name", "").lower().startswith(name):
-                    vid = v["voice_id"]
-                    label = f"{v['name']} (premade - auto-discovered)"
-                    print(f"[VOICE] Auto-discovered premade voice: {label} | {vid}", flush=True)
-                    return vid, label
+HOOK_FALLBACKS = {
+    "warning": [
+        ("VR6AewLTigWG4xSOukaG", "Arnold - strong confident"),
+        ("pNInz6obpgDQGcFmaJgB", "Adam - deep authoritative"),
+        ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
+    ],
+    "symptom": [
+        ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
+        ("SOYHLrjzK2X1ezoPC9cr", "Harry - young enthusiastic"),
+        ("bIHbv24MWmeRgasZH58o", "Will - young American social media"),
+    ],
+    "habit": [
+        ("bIHbv24MWmeRgasZH58o", "Will - young American social media"),
+        ("SOYHLrjzK2X1ezoPC9cr", "Harry - young enthusiastic"),
+        ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
+    ],
+    "cost": [
+        ("pNInz6obpgDQGcFmaJgB", "Adam - deep authoritative"),
+        ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
+        ("VR6AewLTigWG4xSOukaG", "Arnold - strong confident"),
+    ],
+    "myth": [
+        ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
+        ("pNInz6obpgDQGcFmaJgB", "Adam - deep authoritative"),
+        ("bIHbv24MWmeRgasZH58o", "Will - young American social media"),
+    ],
+    "news": [
+        ("SOYHLrjzK2X1ezoPC9cr", "Harry - young enthusiastic"),
+        ("bIHbv24MWmeRgasZH58o", "Will - young American social media"),
+        ("TxGEqnHWrfWFTfGW9XjX", "Josh - warm trustworthy"),
+    ],
+}
 
-        for v in premade:
-            labels = str(v.get("labels", {})).lower()
-            if "male" in labels or "man" in labels:
-                vid = v["voice_id"]
-                label = f"{v['name']} (premade male - auto-discovered)"
-                print(f"[VOICE] Auto-discovered premade male voice: {label} | {vid}", flush=True)
-                return vid, label
-
-    except Exception as e:
-        print(f"[VOICE] Voice discovery failed: {e} — using hardcoded fallback list", flush=True)
-
-    # Hard fallback — skip discovery, use first known free-tier ID
-    first_id, first_label = FREE_MALE_VOICE_FALLBACKS[0]
-    print(f"[VOICE] Fallback voice: {first_label} ({first_id})", flush=True)
-    return first_id, first_label
-
-
-# NOTE: _RESOLVED_VOICE_ID is set AFTER startup validation (see below)
-# so ELEVENLABS_API is confirmed non-empty before the API call is made.
-
+DEFAULT_VOICE_ID = "bIHbv24MWmeRgasZH58o"
+DEFAULT_VOICE_LABEL = "Will - young American social media"
 
 def _make_profile(voice_id: str, label_prefix: str, tone: str, stability: float, style: float) -> Dict:
     return {
@@ -119,54 +101,44 @@ def _make_profile(voice_id: str, label_prefix: str, tone: str, stability: float,
         },
     }
 
-# ══════════════════════════════════════════════════════════
-# VOICE PROFILES — dynamic tone, resolved free-tier voice
-#   warning  → urgent, gripping
-#   symptom  → calm authority
-#   habit    → persuasive & motivating
-#   cost     → trustworthy explainer
-#   myth     → myth-busting conviction
-#   news     → engaging conversational
-# ══════════════════════════════════════════════════════════
-
-# VOICE_PROFILES uses a placeholder ID here.
-# The real voice ID is injected after startup validation via VOICE_PROFILES.update().
-_PLACEHOLDER_ID = FREE_MALE_VOICE_FALLBACKS[0][0]
-
 VOICE_PROFILES = {
     "warning": _make_profile(
-        _PLACEHOLDER_ID, "urgent warning tone",
+        VOICE_BY_HOOK["warning"][0],
+        VOICE_BY_HOOK["warning"][1],
         "urgent, gripping, serious — speak like someone warning a friend about something they must not ignore",
-        stability=0.45, style=0.38,
+        stability=0.42, style=0.48,
     ),
     "symptom": _make_profile(
-        _PLACEHOLDER_ID, "calm medical authority",
+        VOICE_BY_HOOK["symptom"][0],
+        VOICE_BY_HOOK["symptom"][1],
         "calm and authoritative — speak clearly like a knowledgeable friend explaining a health symptom without alarm",
-        stability=0.55, style=0.22,
+        stability=0.60, style=0.18,
     ),
     "habit": _make_profile(
-        _PLACEHOLDER_ID, "persuasive habit motivator",
+        VOICE_BY_HOOK["habit"][0],
+        VOICE_BY_HOOK["habit"][1],
         "persuasive and motivating — speak like a coach who genuinely wants the listener to make a positive change today",
-        stability=0.42, style=0.45,
+        stability=0.44, style=0.46,
     ),
     "cost": _make_profile(
-        _PLACEHOLDER_ID, "persuasive cost explainer",
+        VOICE_BY_HOOK["cost"][0],
+        VOICE_BY_HOOK["cost"][1],
         "trustworthy and persuasive — speak like someone who just figured out the system and wants to save you money",
-        stability=0.52, style=0.30,
+        stability=0.66, style=0.20,
     ),
     "myth": _make_profile(
-        _PLACEHOLDER_ID, "myth-busting conviction",
+        VOICE_BY_HOOK["myth"][0],
+        VOICE_BY_HOOK["myth"][1],
         "confident and convincing — speak like someone who just learned the real truth and can't believe others don't know it yet",
-        stability=0.48, style=0.40,
+        stability=0.50, style=0.38,
     ),
     "news": _make_profile(
-        _PLACEHOLDER_ID, "engaging conversational news",
+        VOICE_BY_HOOK["news"][0],
+        VOICE_BY_HOOK["news"][1],
         "engaging and conversational — speak like you're sharing genuinely interesting health news with a friend over coffee",
-        stability=0.50, style=0.35,
+        stability=0.48, style=0.34,
     ),
 }
-
-DEFAULT_VOICE_ID = "bIHbv24MWmeRgasZH58o"  # Will
 
 # ══════════════════════════════════════════════════════════
 # LOGGING
@@ -191,20 +163,7 @@ if missing:
         log("ERROR", f"  • {m}")
     sys.exit(1)
 
-# ── Resolve voice AFTER validation so ELEVENLABS_API is guaranteed set ──
-_RESOLVED_VOICE_ID, _RESOLVED_VOICE_LABEL = discover_best_male_voice(ELEVENLABS_API)
-DEFAULT_VOICE_ID = "bIHbv24MWmeRgasZH58o"  # Will
-VOICE_PROFILES.update({
-    k: _make_profile(
-        _RESOLVED_VOICE_ID,
-        VOICE_PROFILES[k]["label"].split(" - ")[0],
-        VOICE_PROFILES[k]["tone_instruction"],
-        VOICE_PROFILES[k]["settings"]["stability"],
-        VOICE_PROFILES[k]["settings"]["style"],
-    )
-    for k in VOICE_PROFILES
-})
-log("CONFIG", f"Voice: {_RESOLVED_VOICE_LABEL} ({DEFAULT_VOICE_ID}) | Model: {ELEVENLABS_MODEL} | Target: {TARGET_WORDS} words")
+log("CONFIG", f"Default voice fallback: {DEFAULT_VOICE_LABEL} ({DEFAULT_VOICE_ID}) | Model: {ELEVENLABS_MODEL} | Target: {TARGET_WORDS} words")
 log("CONFIG", f"Use Trends: {USE_TRENDS} | Claude fallback: {'yes' if CLAUDE_API else 'no'} | Pexels: {'yes' if PEXELS_API else 'no'}")
 
 # ══════════════════════════════════════════════════════════
@@ -315,8 +274,8 @@ def health_safety_clean(text: str) -> str:
 def tts_clean(text: str) -> str:
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"\.\.+", ".", text)
-    text = re.sub(u"[\u201c\u201d]", '"', text)   # " " → "
-    text = re.sub(u"[\u2018\u2019]", "'", text)   # ' ' → '
+    text = re.sub(u"[\u201c\u201d]", '"', text)
+    text = re.sub(u"[\u2018\u2019]", "'", text)
     return text.strip()
 
 def get_audio_duration(path: str):
@@ -378,15 +337,10 @@ def choose_cta(hook_type: str) -> str:
     return random.choice(ctas.get((hook_type or "").lower(), fallback))
 
 def select_voice_profile(hook_type: str, topic_name: str = "", angle: str = "") -> Dict:
-    """
-    Always returns an Alex profile.
-    Falls back to keyword-matching if hook_type is missing or unrecognized,
-    then falls back to a default Alex profile.
-    """
     hook_type = (hook_type or "").strip().lower()
-    profile = VOICE_PROFILES.get(hook_type)
-    if profile:
-        return profile
+
+    if hook_type in VOICE_PROFILES:
+        return VOICE_PROFILES[hook_type]
 
     combined = f"{topic_name} {angle}".lower()
 
@@ -396,19 +350,10 @@ def select_voice_profile(hook_type: str, topic_name: str = "", angle: str = "") 
         return VOICE_PROFILES["cost"]
     if any(x in combined for x in ["sleep", "walking", "food", "nutrition", "hydration", "habit"]):
         return VOICE_PROFILES["habit"]
+    if any(x in combined for x in ["symptom", "fatigue", "tired", "prediabetes", "dehydration"]):
+        return VOICE_PROFILES["symptom"]
 
-    # Default Alex fallback — persuasive/engaging general tone
-    return {
-        "voice_id": DEFAULT_VOICE_ID,
-        "label": "Alex - default persuasive tone",
-        "tone_instruction": "persuasive and engaging — speak naturally, like you genuinely want to help the listener",
-        "settings": {
-            "stability": 0.50,
-            "similarity_boost": 0.80,
-            "style": 0.35,
-            "use_speaker_boost": True,
-        },
-    }
+    return VOICE_PROFILES["news"]
 
 # ══════════════════════════════════════════════════════════
 # TOPICS
@@ -618,11 +563,31 @@ topic_source = selected_topic["source"]
 selected_voice = select_voice_profile(_topic_hook_type, _topic_name, _topic_angle)
 VOICE_ID = selected_voice["voice_id"]
 VOICE_LABEL = selected_voice["label"]
-VOICE_SETTINGS = selected_voice["settings"]
+VOICE_SETTINGS = selected_voice["settings"].copy()
 TONE_INSTRUCTION = selected_voice.get("tone_instruction", "engaging and persuasive")
+
+if _topic_hook_type == "warning":
+    VOICE_SETTINGS["stability"] = 0.38
+    VOICE_SETTINGS["style"] = 0.50
+elif _topic_hook_type == "symptom":
+    VOICE_SETTINGS["stability"] = 0.62
+    VOICE_SETTINGS["style"] = 0.18
+elif _topic_hook_type == "cost":
+    VOICE_SETTINGS["stability"] = 0.68
+    VOICE_SETTINGS["style"] = 0.20
+elif _topic_hook_type == "habit":
+    VOICE_SETTINGS["stability"] = 0.44
+    VOICE_SETTINGS["style"] = 0.48
+elif _topic_hook_type == "myth":
+    VOICE_SETTINGS["stability"] = 0.50
+    VOICE_SETTINGS["style"] = 0.40
+elif _topic_hook_type == "news":
+    VOICE_SETTINGS["stability"] = 0.48
+    VOICE_SETTINGS["style"] = 0.36
 
 log("CONFIG", f"Selected voice: {VOICE_LABEL} | Voice ID: {VOICE_ID}")
 log("CONFIG", f"Tone: {TONE_INSTRUCTION}")
+log("CONFIG", f"Voice settings: {VOICE_SETTINGS}")
 
 # ══════════════════════════════════════════════════════════
 # STEP 1 — CONTENT PACK
@@ -640,7 +605,7 @@ HOOK TYPE: {_topic_hook_type}
 SOURCE: {topic_source}
 
 VOICE TONE FOR THIS VIDEO:
-The voiceover will be delivered by Alex — a young male voice trending on YouTube Shorts.
+The voiceover will be delivered by a male voice matched to the topic.
 Tone instruction: {TONE_INSTRUCTION}
 Write the script to match this tone. The writing itself should feel natural when spoken aloud
 by a confident, relatable young man. Sentence rhythm matters — keep sentences short and punchy.
@@ -698,7 +663,7 @@ RULES FOR SCRIPT:
 - exactly 150 words
 - 55 to 60 second spoken flow
 - plain American English
-- clear, useful, and written for Alex's tone: {TONE_INSTRUCTION}
+- clear, useful, and written for this tone: {TONE_INSTRUCTION}
 - 6th to 8th grade reading level
 - short punchy sentences that sound natural out loud
 - no diagnosing
@@ -807,7 +772,7 @@ RULES:
 - no fearbait
 - natural spoken pacing
 - short punchy sentences that sound natural out loud
-- written for a confident young male voice (Alex)
+- written for a confident young male voice
 - keep the same topic and CTA style
 
 Return ONLY the rewritten script.
@@ -843,7 +808,7 @@ script_header = (
     f"ANGLE: {_topic_angle}\n"
     f"SOURCE: {topic_source}\n"
     f"HOOK TYPE: {_topic_hook_type}\n"
-    f"VOICE: Alex ({VOICE_ID})\n"
+    f"VOICE: {VOICE_LABEL} ({VOICE_ID})\n"
     f"VOICE STYLE: {VOICE_LABEL}\n"
     f"TONE: {TONE_INSTRUCTION}\n"
     f"THUMBNAIL HOOK: {thumbnail_hook}\n"
@@ -1017,7 +982,7 @@ video_prompt_lines = []
 video_prompt_lines.append(f"TITLE: {title}")
 video_prompt_lines.append(f"TOPIC: {_topic_name}")
 video_prompt_lines.append(f"THUMBNAIL HOOK: {thumbnail_hook}")
-video_prompt_lines.append(f"VOICE: Alex | TONE: {TONE_INSTRUCTION}")
+video_prompt_lines.append(f"VOICE: {VOICE_LABEL} | TONE: {TONE_INSTRUCTION}")
 video_prompt_lines.append("")
 video_prompt_lines.append("AI VIDEO PRODUCTION GUIDE")
 video_prompt_lines.append("")
@@ -1088,8 +1053,7 @@ log("VOICE", f"Generating audio — voice: {VOICE_LABEL} ({VOICE_ID})...")
 actual_duration = None
 voice_provider = "none"
 
-def _try_elevenlabs_voice(vid: str, label: str) -> bool:
-    """Try a single ElevenLabs voice ID. Returns True on success."""
+def _try_elevenlabs_voice(vid: str, label: str, settings: Dict) -> bool:
     global actual_duration, voice_provider, VOICE_ID, VOICE_LABEL
     try:
         res = requests.post(
@@ -1101,21 +1065,24 @@ def _try_elevenlabs_voice(vid: str, label: str) -> bool:
             json={
                 "text": script,
                 "model_id": ELEVENLABS_MODEL,
-                "voice_settings": VOICE_SETTINGS,
+                "voice_settings": settings,
             },
             timeout=90,
         )
         if res.status_code == 402:
-            log("VOICE", f"402 payment_required for {label} ({vid}) — library voice blocked on free tier, skipping")
+            log("VOICE", f"402 payment_required for {label} ({vid}) — skipping")
             return False
         if not res.ok:
             log("VOICE", f"ElevenLabs {res.status_code} for {label}: {res.text[:200]}")
             return False
+
         with open(VOICE_FILE, "wb") as f:
             f.write(res.content)
+
         if os.path.getsize(VOICE_FILE) < MIN_AUDIO_FILESIZE:
             log("VOICE", f"Audio file too small for {label}, skipping")
             return False
+
         actual_duration = get_audio_duration(VOICE_FILE)
         voice_provider = "elevenlabs"
         VOICE_ID = vid
@@ -1126,16 +1093,40 @@ def _try_elevenlabs_voice(vid: str, label: str) -> bool:
         log("VOICE", f"Exception for {label} ({vid}): {e}")
         return False
 
-# Try the resolved/primary voice first, then walk the full fallback list
-voices_to_try = [(VOICE_ID, VOICE_LABEL)] + [
-    (vid, lbl) for vid, lbl in FREE_MALE_VOICE_FALLBACKS
-    if vid != VOICE_ID
-]
+topic_fallbacks = HOOK_FALLBACKS.get(_topic_hook_type, FREE_MALE_VOICE_FALLBACKS)
+
+seen = set()
+voices_to_try = []
+for vid, lbl in [(VOICE_ID, VOICE_LABEL)] + topic_fallbacks + FREE_MALE_VOICE_FALLBACKS:
+    if vid not in seen:
+        seen.add(vid)
+        voices_to_try.append((vid, lbl))
 
 elevenlabs_ok = False
 for _vid, _lbl in voices_to_try:
-    if _try_elevenlabs_voice(_vid, _lbl):
+    current_settings = VOICE_SETTINGS.copy()
+
+    if _vid == "VR6AewLTigWG4xSOukaG":  # Arnold
+        current_settings["stability"] = 0.45 if _topic_hook_type == "warning" else 0.55
+        current_settings["style"] = 0.44 if _topic_hook_type == "warning" else 0.28
+    elif _vid == "pNInz6obpgDQGcFmaJgB":  # Adam
+        current_settings["stability"] = 0.68
+        current_settings["style"] = 0.20
+    elif _vid == "TxGEqnHWrfWFTfGW9XjX":  # Josh
+        current_settings["stability"] = 0.60
+        current_settings["style"] = 0.22
+    elif _vid == "SOYHLrjzK2X1ezoPC9cr":  # Harry
+        current_settings["stability"] = 0.46
+        current_settings["style"] = 0.38
+    elif _vid == "bIHbv24MWmeRgasZH58o":  # Will
+        current_settings["stability"] = 0.44
+        current_settings["style"] = 0.46
+
+    log("VOICE", f"Trying { _lbl } ({ _vid }) with settings {current_settings}")
+
+    if _try_elevenlabs_voice(_vid, _lbl, current_settings):
         elevenlabs_ok = True
+        VOICE_SETTINGS = current_settings
         break
 
 if not elevenlabs_ok:
@@ -1169,7 +1160,7 @@ debug_payload = {
     "word_count": word_count,
     "audio_duration": actual_duration,
     "voice_provider": voice_provider,
-    "voice_name": "Alex",
+    "voice_name": VOICE_LABEL,
     "voice_label": VOICE_LABEL,
     "tone_instruction": TONE_INSTRUCTION,
     "voice_settings": VOICE_SETTINGS,
@@ -1195,7 +1186,7 @@ report = (
     f"HOOK TYPE:    {_topic_hook_type}\n"
     f"WORD COUNT:   {word_count} words  (target: {TARGET_WORDS})\n"
     f"AUDIO:        {duration_str}\n"
-    f"VOICE NAME:   Alex\n"
+    f"VOICE NAME:   {VOICE_LABEL}\n"
     f"VOICE ID:     {VOICE_ID}\n"
     f"VOICE STYLE:  {VOICE_LABEL}\n"
     f"TONE:         {TONE_INSTRUCTION}\n"
