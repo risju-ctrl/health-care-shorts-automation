@@ -108,7 +108,7 @@ def discover_best_male_voice(api_key: str) -> tuple:
 def _make_profile(voice_id: str, label_prefix: str, tone: str, stability: float, style: float) -> Dict:
     return {
         "voice_id": voice_id,
-        "label": f"{label_prefix} - {_RESOLVED_VOICE_LABEL}",
+        "label": label_prefix,
         "tone_instruction": tone,
         "settings": {
             "stability": stability,
