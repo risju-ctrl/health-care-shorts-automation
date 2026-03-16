@@ -63,6 +63,7 @@ def discover_best_male_voice(api_key: str) -> tuple:
     Calls /v1/voices to list all premade voices on the account.
     Looks for young male voices by name/label.
     Returns (voice_id, label). Falls back to FREE_MALE_VOICE_FALLBACKS.
+    Uses print() directly — safe to call before log() is defined.
     """
     preferred_names = ["charlie", "harry", "josh", "arnold", "adam", "liam", "daniel", "sam"]
     try:
@@ -75,39 +76,34 @@ def discover_best_male_voice(api_key: str) -> tuple:
         voices = r.json().get("voices", [])
         premade = [v for v in voices if v.get("category") in ("premade", "default")]
 
-        # Prefer by known name order
         for name in preferred_names:
             for v in premade:
                 if v.get("name", "").lower().startswith(name):
                     vid = v["voice_id"]
                     label = f"{v['name']} (premade - auto-discovered)"
-                    log("VOICE", f"Auto-discovered premade voice: {label} | {vid}")
+                    print(f"[VOICE] Auto-discovered premade voice: {label} | {vid}", flush=True)
                     return vid, label
 
-        # Any premade male voice
         for v in premade:
             labels = str(v.get("labels", {})).lower()
             if "male" in labels or "man" in labels:
                 vid = v["voice_id"]
                 label = f"{v['name']} (premade male - auto-discovered)"
-                log("VOICE", f"Auto-discovered premade male voice: {label} | {vid}")
+                print(f"[VOICE] Auto-discovered premade male voice: {label} | {vid}", flush=True)
                 return vid, label
 
     except Exception as e:
-        log("VOICE", f"Voice discovery failed: {e}")
+        print(f"[VOICE] Voice discovery failed: {e} — using hardcoded fallback list", flush=True)
 
-    # Hard fallback — try each known ID in order
-    log("VOICE", "Falling back to known free-tier premade voice IDs...")
-    for vid, label in FREE_MALE_VOICE_FALLBACKS:
-        log("VOICE", f"Will try: {label} ({vid})")
+    # Hard fallback — skip discovery, use first known free-tier ID
     first_id, first_label = FREE_MALE_VOICE_FALLBACKS[0]
+    print(f"[VOICE] Fallback voice: {first_label} ({first_id})", flush=True)
     return first_id, first_label
 
 
-# ── Resolve the actual voice ID at startup ──
-_RESOLVED_VOICE_ID, _RESOLVED_VOICE_LABEL = discover_best_male_voice(
-    os.getenv("ELEVENLABS_API", "")
-)
+# NOTE: _RESOLVED_VOICE_ID is set AFTER startup validation (see below)
+# so ELEVENLABS_API is confirmed non-empty before the API call is made.
+
 
 def _make_profile(voice_id: str, label_prefix: str, tone: str, stability: float, style: float) -> Dict:
     return {
@@ -132,40 +128,44 @@ def _make_profile(voice_id: str, label_prefix: str, tone: str, stability: float,
 #   news     → engaging conversational
 # ══════════════════════════════════════════════════════════
 
+# VOICE_PROFILES uses a placeholder ID here.
+# The real voice ID is injected after startup validation via VOICE_PROFILES.update().
+_PLACEHOLDER_ID = FREE_MALE_VOICE_FALLBACKS[0][0]
+
 VOICE_PROFILES = {
     "warning": _make_profile(
-        _RESOLVED_VOICE_ID, "urgent warning tone",
+        _PLACEHOLDER_ID, "urgent warning tone",
         "urgent, gripping, serious — speak like someone warning a friend about something they must not ignore",
         stability=0.45, style=0.38,
     ),
     "symptom": _make_profile(
-        _RESOLVED_VOICE_ID, "calm medical authority",
+        _PLACEHOLDER_ID, "calm medical authority",
         "calm and authoritative — speak clearly like a knowledgeable friend explaining a health symptom without alarm",
         stability=0.55, style=0.22,
     ),
     "habit": _make_profile(
-        _RESOLVED_VOICE_ID, "persuasive habit motivator",
+        _PLACEHOLDER_ID, "persuasive habit motivator",
         "persuasive and motivating — speak like a coach who genuinely wants the listener to make a positive change today",
         stability=0.42, style=0.45,
     ),
     "cost": _make_profile(
-        _RESOLVED_VOICE_ID, "persuasive cost explainer",
+        _PLACEHOLDER_ID, "persuasive cost explainer",
         "trustworthy and persuasive — speak like someone who just figured out the system and wants to save you money",
         stability=0.52, style=0.30,
     ),
     "myth": _make_profile(
-        _RESOLVED_VOICE_ID, "myth-busting conviction",
+        _PLACEHOLDER_ID, "myth-busting conviction",
         "confident and convincing — speak like someone who just learned the real truth and can't believe others don't know it yet",
         stability=0.48, style=0.40,
     ),
     "news": _make_profile(
-        _RESOLVED_VOICE_ID, "engaging conversational news",
+        _PLACEHOLDER_ID, "engaging conversational news",
         "engaging and conversational — speak like you're sharing genuinely interesting health news with a friend over coffee",
         stability=0.50, style=0.35,
     ),
 }
 
-DEFAULT_VOICE_ID = _RESOLVED_VOICE_ID
+DEFAULT_VOICE_ID = _PLACEHOLDER_ID  # patched after validation
 
 # ══════════════════════════════════════════════════════════
 # LOGGING
@@ -190,6 +190,19 @@ if missing:
         log("ERROR", f"  • {m}")
     sys.exit(1)
 
+# ── Resolve voice AFTER validation so ELEVENLABS_API is guaranteed set ──
+_RESOLVED_VOICE_ID, _RESOLVED_VOICE_LABEL = discover_best_male_voice(ELEVENLABS_API)
+DEFAULT_VOICE_ID = _RESOLVED_VOICE_ID
+VOICE_PROFILES.update({
+    k: _make_profile(
+        _RESOLVED_VOICE_ID,
+        VOICE_PROFILES[k]["label"].split(" - ")[0],
+        VOICE_PROFILES[k]["tone_instruction"],
+        VOICE_PROFILES[k]["settings"]["stability"],
+        VOICE_PROFILES[k]["settings"]["style"],
+    )
+    for k in VOICE_PROFILES
+})
 log("CONFIG", f"Voice: {_RESOLVED_VOICE_LABEL} ({DEFAULT_VOICE_ID}) | Model: {ELEVENLABS_MODEL} | Target: {TARGET_WORDS} words")
 log("CONFIG", f"Use Trends: {USE_TRENDS} | Claude fallback: {'yes' if CLAUDE_API else 'no'} | Pexels: {'yes' if PEXELS_API else 'no'}")
 
